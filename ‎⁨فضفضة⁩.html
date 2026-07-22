@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>فضفضة</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&family=Aref+Ruqaa:wght@400;700&display=swap');
+
+  :root{
+    --bg:#15121C; --bgSoft:#1D1826; --card:#221C30; --border:#3A3149;
+    --gold:#E3A857; --goldSoft:#F0C98A; --rose:#C97C8B;
+    --cream:#F3ECE1; --muted:#9B93AD; --danger:#C96257; --ok:#7FA37A;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--cream);
+    font-family:'Tajawal', sans-serif; min-height:100vh;
+  }
+  .display{font-family:'Aref Ruqaa', serif;}
+  .wrap{max-width:480px; margin:0 auto; padding:32px 20px;}
+  .center{display:flex; flex-direction:column; align-items:center; text-align:center;}
+  .card{
+    background:var(--card); border:1px solid var(--border);
+    border-radius:16px; padding:20px; margin-bottom:16px;
+  }
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    padding:12px 20px; border-radius:12px; font-weight:700; font-size:14px;
+    border:none; cursor:pointer; width:100%;
+  }
+  .btn-gold{background:var(--gold); color:#1B160E;}
+  .btn-ghost{background:transparent; color:var(--cream); border:1px solid var(--border);}
+  .btn-danger{background:transparent; color:var(--danger); border:1px solid var(--danger);}
+  .btn-rose{background:var(--rose); color:#241014;}
+  .btn:disabled{opacity:.4; cursor:not-allowed;}
+  .btn-row{display:flex; gap:10px;}
+  .btn-row .btn{flex:1;}
+  .field{margin-bottom:18px;}
+  .field label{display:block; font-weight:700; font-size:14px; margin-bottom:8px;}
+  input[type=text], input[type=number]{
+    width:100%; padding:12px 14px; border-radius:12px;
+    background:var(--bgSoft); border:1px solid var(--border); color:var(--cream);
+    font-family:inherit; font-size:14px;
+  }
+  .pill{
+    display:inline-block; padding:8px 16px; border-radius:999px; font-size:13px;
+    font-weight:700; border:1px solid var(--border); background:transparent; color:var(--muted);
+    cursor:pointer; margin:0 4px 8px 0;
+  }
+  .pill.active{background:var(--gold); color:#1B160E; border-color:var(--gold);}
+  .purpose-opt{
+    display:flex; align-items:center; gap:10px; padding:12px 14px; border-radius:12px;
+    background:var(--bgSoft); border:1px solid var(--border); cursor:pointer; margin-bottom:8px;
+    text-align:right;
+  }
+  .purpose-opt.active{background:rgba(227,168,87,.13); border-color:var(--gold);}
+  .purpose-opt .t{font-weight:700; font-size:14px;}
+  .purpose-opt .d{font-size:12px; color:var(--muted);}
+  .muted{color:var(--muted);}
+  .row-between{display:flex; align-items:center; justify-content:space-between;}
+  .list-row{padding:10px 12px; border-radius:10px; background:var(--bgSoft); font-size:14px; margin-bottom:8px;}
+  .timer{width:180px; height:180px; margin:10px auto;}
+  .timer-txt{font-size:28px; font-weight:700;}
+  .top-back{background:none; border:none; color:var(--muted); font-size:14px; cursor:pointer; margin-bottom:20px;}
+  .err{color:var(--danger); font-size:13px; margin-bottom:10px;}
+  ::-webkit-scrollbar{width:6px;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+/* ========================================================================
+   فضفضة — نسخة تجريبية على جهاز واحد (بدون خادم / بدون قاعدة بيانات حقيقية)
+   كل البيانات تُحفظ في localStorage الخاص بالمتصفح، يعني تختفي لو غيّرت
+   المتصفح أو الجهاز. مفيدة للتجربة والتعلم، ولاحقًا نربطها بـ Firebase
+   عشان تشتغل حيّة بين أجهزة متعددة فعلاً.
+   ======================================================================== */
+
+// ---------- البيانات الثابتة ----------
+const PURPOSES = [
+  { id: "vent",   label: "فضفضة",         desc: "أبغى أفضفض وأفرغ اللي بخاطري" },
+  { id: "meet",   label: "تعارف",          desc: "أبغى أتعرف على أشخاص جدد" },
+  { id: "listen", label: "مستمع وناصح",    desc: "أبغى أسمع وأنصح غيري" },
+];
+const CATEGORIES = [
+  { id: "relationship", label: "علاقة عاطفية" },
+  { id: "family",       label: "مشاكل الأسرة" },
+  { id: "self",         label: "مشاكل الذات" },
+  { id: "work",         label: "مشاكل العمل أو الدراسة" },
+  { id: "other",        label: "أخرى" },
+];
+const PREFER = [
+  { id: "male",   label: "ذكر" },
+  { id: "female", label: "أنثى" },
+  { id: "all",    label: "الجميع" },
+];
+const GENDERS = [
+  { id: "male",   label: "ذكر" },
+  { id: "female", label: "أنثى" },
+];
+const PSEUDONYMS = [
+  "نجم الليل","ضي القمر","ريح الصبا","ظل الياسمين","همسة الشتا","طيف الفجر",
+  "لمعة النجم","سرّ الغيم","دفء الشتا","رذاذ المطر","وهج الشمعة","صدى الحكاية",
+  "عبير الليل","أثر الخطى","بريق الأمل","نسمة الصيف","ظل السحاب","شرارة الحرف",
+  "همسة القلب","لؤلؤة البحر","سنا الفجر","توهج الغروب","رفيف الجناح","وميض النجمة",
+];
+
+// ---------- التخزين المحلي ----------
+const STORAGE_KEY = "ffd_event_state_v1";
+
+function defaultState(){
+  return {
+    participants: [],
+    currentRound: 0,
+    roundStartTime: null,
+    roundDuration: 1200,
+    pairings: {1:[], 2:[], 3:[]},
+    skipped: {1:[], 2:[], 3:[]},
+    responses: {1:{}, 2:{}, 3:{}},
+    finished: false,
+  };
+}
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : defaultState();
+  }catch(e){ return defaultState(); }
+}
+function saveState(s){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+}
+function uid(){
+  return Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4);
+}
+
+// ---------- خوارزمية التوزيع ----------
+function genderOk(a, b){
+  return a.prefer === "all" || a.prefer === b.gender;
+}
+function runMatching(eligible, pairings){
+  const history = {};
+  eligible.forEach(p => history[p.id] = new Set());
+  [1,2,3].forEach(r => {
+    (pairings[r]||[]).forEach(([a,b]) => {
+      if(history[a]) history[a].add(b);
+      if(history[b]) history[b].add(a);
+    });
+  });
+  let best = { pairs: [], leftover: eligible.map(p=>p.id) };
+  for(let i=0;i<40;i++){
+    const pool = [...eligible].sort(()=>Math.random()-0.5);
+    const used = new Set();
+    const pairs = [];
+    for(const p of pool){
+      if(used.has(p.id)) continue;
+      const match = pool.find(q =>
+        q.id !== p.id && !used.has(q.id) &&
+        !history[p.id].has(q.id) &&
+        genderOk(p,q) && genderOk(q,p)
+      );
+      if(match){ used.add(p.id); used.add(match.id); pairs.push([p.id, match.id]); }
+    }
+    const leftover = pool.filter(p=>!used.has(p.id)).map(p=>p.id);
+    if(pairs.length > best.pairs.length) best = { pairs, leftover };
+    if(leftover.length <= 1) break;
+  }
+  return best;
+}
+function getMyPair(state, myId, round){
+  const found = (state.pairings[round]||[]).find(p => p.includes(myId));
+  if(!found) return null;
+  return found[0]===myId ? found[1] : found[0];
+}
+function getMyMatches(state, myId){
+  const out = [];
+  [1,2,3].forEach(r => {
+    const otherId = getMyPair(state, myId, r);
+    if(!otherId) return;
+    const meYes = state.responses[r]?.[myId] === true;
+    const otherYes = state.responses[r]?.[otherId] === true;
+    if(meYes && otherYes){
+      const other = state.participants.find(p=>p.id===otherId);
+      if(other) out.push({ round:r, pseudonym: other.pseudonym });
+    }
+  });
+  return out;
+}
+
+// ---------- حالة التطبيق (في الذاكرة، تُقرأ/تُكتب من/إلى localStorage) ----------
+let ui = {
+  role: sessionStorage.getItem("ffd_role") || null,     // 'organizer' | 'participant' | null
+  myId: sessionStorage.getItem("ffd_my_id") || null,
+  form: { name:"", gender:"", purpose:"", category:"", prefer:"" },
+  minutes: 20,
+  confirmReset: false,
+};
+let tickTimer = null;
+
+function setRole(role){
+  ui.role = role;
+  if(role) sessionStorage.setItem("ffd_role", role); else sessionStorage.removeItem("ffd_role");
+  render();
+}
+function setMyId(id){
+  ui.myId = id;
+  sessionStorage.setItem("ffd_my_id", id);
+}
+
+// ---------- أدوات بناء HTML صغيرة ----------
+function esc(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ---------- الشاشات ----------
+function screenRoleGate(){
+  return `
+    <div class="wrap center" style="padding-top:80px;">
+      <div style="font-size:30px; margin-bottom:8px;">✨</div>
+      <h1 class="display" style="color:var(--goldSoft); font-size:38px; margin:0 0 6px;">فضفضة</h1>
+      <p class="muted" style="font-size:14px; margin-bottom:36px;">جلسات تعارف وفضفضة خلف اسم مستعار</p>
+      <div style="width:100%;">
+        <div class="card" style="cursor:pointer; text-align:right;" onclick="setRole('participant')">
+          <div class="row-between">
+            <div>
+              <div style="font-weight:700; font-size:17px;">أنا مشارك</div>
+              <div class="muted" style="font-size:13px;">سجّل وادخل الجلسات</div>
+            </div>
+            <div style="color:var(--gold); font-size:20px;">←</div>
+          </div>
+        </div>
+        <div class="card" style="cursor:pointer; text-align:right;" onclick="setRole('organizer')">
+          <div class="row-between">
+            <div>
+              <div style="font-weight:700; font-size:17px;">أنا المنظم</div>
+              <div class="muted" style="font-size:13px;">تحكم بالجولات وتابع الفعالية</div>
+            </div>
+            <div style="color:var(--gold); font-size:20px;">←</div>
+          </div>
+        </div>
+      </div>
+      <p class="muted" style="font-size:12px; margin-top:24px;">
+        ⚠️ نسخة تجريبية على هذا الجهاز فقط — البيانات ما تنتقل لأجهزة ثانية بعد
+      </p>
+    </div>`;
+}
+
+function screenRegister(state){
+  const f = ui.form;
+  const canSubmit = f.name.trim() && f.gender && f.purpose && (f.purpose!=="vent" || f.category) && f.prefer;
+  return `
+    <div class="wrap">
+      <button class="top-back" onclick="setRole(null)">← رجوع</button>
+      <h2 class="display" style="color:var(--goldSoft); font-size:24px; margin:0 0 4px;">سجّل دخولك</h2>
+      <p class="muted" style="font-size:13px; margin-bottom:20px;">اسمك الحقيقي يبقى عندك، الجميع يشوفونك باسمك المستعار فقط</p>
+
+      <div class="field">
+        <label>اسمك الحقيقي</label>
+        <input type="text" value="${esc(f.name)}" oninput="ui.form.name=this.value" placeholder="اكتب اسمك">
+      </div>
+
+      <div class="field">
+        <label>جنسك</label>
+        ${GENDERS.map(g=>`<span class="pill ${f.gender===g.id?'active':''}" onclick="ui.form.gender='${g.id}'; render()">${g.label}</span>`).join("")}
+      </div>
+
+      <div class="field">
+        <label>هدفك من التجربة</label>
+        ${PURPOSES.map(p=>`
+          <div class="purpose-opt ${f.purpose===p.id?'active':''}" onclick="ui.form.purpose='${p.id}'; render()">
+            <div>
+              <div class="t">${p.label}</div>
+              <div class="d">${p.desc}</div>
+            </div>
+          </div>`).join("")}
+      </div>
+
+      ${f.purpose==="vent" ? `
+      <div class="field">
+        <label>تصنيف الفضفضة</label>
+        ${CATEGORIES.map(c=>`<span class="pill ${f.category===c.id?'active':''}" onclick="ui.form.category='${c.id}'; render()">${c.label}</span>`).join("")}
+      </div>` : ""}
+
+      <div class="field">
+        <label>تحب تتحدث مع</label>
+        ${PREFER.map(p=>`<span class="pill ${f.prefer===p.id?'active':''}" onclick="ui.form.prefer='${p.id}'; render()">${p.label}</span>`).join("")}
+      </div>
+
+      <button class="btn btn-gold" ${canSubmit?"":"disabled"} onclick="submitRegister()">سجّلني في الفعالية</button>
+    </div>`;
+}
+
+function submitRegister(){
+  const f = ui.form;
+  const canSubmit = f.name.trim() && f.gender && f.purpose && (f.purpose!=="vent" || f.category) && f.prefer;
+  if(!canSubmit) return;
+  const state = loadState();
+  const usedNames = new Set(state.participants.map(p=>p.pseudonym));
+  let pseudonym = PSEUDONYMS.find(n=>!usedNames.has(n));
+  if(!pseudonym) pseudonym = PSEUDONYMS[Math.floor(Math.random()*PSEUDONYMS.length)] + " " + Math.floor(Math.random()*90+10);
+  const id = uid();
+  state.participants.push({
+    id, realName: f.name.trim(), gender: f.gender, purpose: f.purpose,
+    category: f.purpose==="vent" ? f.category : null, prefer: f.prefer,
+    pseudonym, createdAt: Date.now(),
+  });
+  saveState(state);
+  setMyId(id);
+  render();
+}
+
+function circularTimerSvg(remaining, total){
+  const frac = total>0 ? Math.max(0, Math.min(1, remaining/total)) : 0;
+  const r = 78, c = 2*Math.PI*r;
+  const mins = Math.floor(Math.max(0,remaining)/60);
+  const secs = Math.max(0,remaining)%60;
+  const color = frac < 0.15 ? "var(--rose)" : "var(--gold)";
+  return `
+    <div style="position:relative; width:180px; height:180px; margin:10px auto;">
+      <svg viewBox="0 0 176 176" width="180" height="180" style="transform:rotate(-90deg);">
+        <circle cx="88" cy="88" r="${r}" fill="none" stroke="var(--border)" stroke-width="9"/>
+        <circle cx="88" cy="88" r="${r}" fill="none" stroke="${color}" stroke-width="9" stroke-linecap="round"
+          stroke-dasharray="${c}" stroke-dashoffset="${c*(1-frac)}" style="transition:stroke-dashoffset 1s linear;"/>
+      </svg>
+      <div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+        <div class="timer-txt">${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}</div>
+        <div class="muted" style="font-size:12px; margin-top:4px;">${remaining>0 ? "الوقت المتبقي" : "انتهى الوقت"}</div>
+      </div>
+    </div>`;
+}
+
+function screenParticipant(state){
+  const me = state.participants.find(p=>p.id===ui.myId);
+  if(!me) return screenRegister(state);
+
+  if(state.finished){
+    const matches = getMyMatches(state, me.id);
+    return `
+      <div class="wrap center" style="padding-top:60px;">
+        <div style="font-size:28px;">✨</div>
+        <h2 class="display" style="color:var(--goldSoft); font-size:26px; margin:8px 0 2px;">انتهت الفعالية</h2>
+        <p class="muted" style="font-size:14px; margin-bottom:24px;">${esc(me.pseudonym)}، هذي نتيجتك</p>
+        ${matches.length===0 ? `<div class="card" style="width:100%;"><p class="muted">ما صار في ماتش متبادل هالمرة</p></div>` :
+          matches.map(m=>`
+            <div class="card" style="width:100%;">
+              <div>❤️ حصل ماتش مع <b>${esc(m.pseudonym)}</b></div>
+              <div class="muted" style="font-size:12px; margin-top:4px;">من الجولة ${m.round}</div>
+            </div>`).join("")
+        }
+      </div>`;
+  }
+
+  if(state.currentRound === 0){
+    return `
+      <div class="wrap center" style="padding-top:60px;">
+        <div style="font-size:26px;">✨</div>
+        <div class="muted" style="font-size:12px; margin-top:8px;">اسمك المستعار</div>
+        <div class="display" style="color:var(--goldSoft); font-size:26px; margin-bottom:20px;">${esc(me.pseudonym)}</div>
+        <div class="card" style="width:100%;">
+          <div style="margin-bottom:6px;">👥 <b>${state.participants.length}</b> <span class="muted">مشترك مسجّل الآن</span></div>
+          <div class="muted" style="font-size:13px;">بانتظار المنظم لبدء الجولة الأولى</div>
+        </div>
+      </div>`;
+  }
+
+  const round = state.currentRound;
+  const partnerId = getMyPair(state, me.id, round);
+  const isSkipped = (state.skipped[round]||[]).includes(me.id);
+  const start = state.roundStartTime, total = state.roundDuration;
+  const now = Date.now();
+  const remaining = start ? Math.round((start + total*1000 - now)/1000) : total;
+  const timeUp = remaining <= 0;
+
+  if(isSkipped || !partnerId){
+    return `
+      <div class="wrap center" style="padding-top:60px;">
+        <div style="font-size:22px;">⏳</div>
+        <h3 style="margin:10px 0 4px;">الجولة ${round} جارية</h3>
+        <p class="muted" style="font-size:14px;">هذي الجولة خارج التوزيع، استرح وترقّب الجولة الجاية</p>
+      </div>`;
+  }
+
+  const partner = state.participants.find(p=>p.id===partnerId);
+  const myResponse = state.responses[round]?.[me.id];
+
+  return `
+    <div class="wrap center" style="padding-top:40px;">
+      <div class="muted" style="font-size:12px;">الجولة ${round} من ٣ · أنت: ${esc(me.pseudonym)}</div>
+      <h3 style="margin:14px 0 6px; font-weight:400;">أنت الآن جالس مع</h3>
+      <div class="display" style="color:var(--goldSoft); font-size:30px; margin-bottom:10px;">${esc(partner?.pseudonym||"...")}</div>
+      ${!timeUp ? circularTimerSvg(remaining, total) : ""}
+      <div class="card" style="width:100%; text-align:right; margin-top:16px;">
+        <div class="muted" style="font-size:12px; margin-bottom:4px;">هدفه من الجلسة</div>
+        <div style="font-weight:700;">
+          ${PURPOSES.find(p=>p.id===partner.purpose)?.label || ""}
+          ${partner.category ? " · " + (CATEGORIES.find(c=>c.id===partner.category)?.label||"") : ""}
+        </div>
+      </div>
+      ${timeUp && myResponse===undefined ? `
+        <div class="card" style="width:100%;">
+          <div style="font-weight:700; margin-bottom:14px;">هل تريد الاستمرار مع ${esc(partner?.pseudonym)} وجهًا لوجه بعد انتهاء الجولات؟</div>
+          <div class="btn-row">
+            <button class="btn btn-gold" onclick="respondContinue(true)">✓ أكيد</button>
+            <button class="btn btn-ghost" onclick="respondContinue(false)">✗ لا</button>
+          </div>
+        </div>` : ""}
+      ${timeUp && myResponse!==undefined ? `<p class="muted" style="font-size:13px;">تم تسجيل إجابتك، بانتظار الجولة القادمة أو النتيجة النهائية</p>` : ""}
+    </div>`;
+}
+
+function respondContinue(val){
+  const state = loadState();
+  const round = state.currentRound;
+  if(!state.responses[round]) state.responses[round] = {};
+  state.responses[round][ui.myId] = val;
+  saveState(state);
+  render();
+}
+
+function screenOrganizer(state){
+  const round = state.currentRound;
+  const start = state.roundStartTime, total = state.roundDuration;
+  const now = Date.now();
+  const remaining = start ? Math.round((start + total*1000 - now)/1000) : 0;
+  const roundElapsed = round > 0 && remaining <= 0;
+
+  let roundControls = "";
+  if(round === 0 && !state.finished){
+    roundControls = `
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+        <span class="muted" style="font-size:13px;">مدة كل جولة (دقائق):</span>
+        <input type="number" min="1" value="${ui.minutes}" style="width:64px; text-align:center;"
+          oninput="ui.minutes=this.value">
+      </div>
+      <button class="btn btn-gold" ${state.participants.length<2?"disabled":""} onclick="startRound(1)">▶ ابدأ الجولة الأولى</button>`;
+  } else if(round>0 && round<3 && roundElapsed && !state.finished){
+    roundControls = `<button class="btn btn-gold" onclick="startRound(${round+1})">▶ ابدأ الجولة ${round+1}</button>`;
+  } else if(round===3 && roundElapsed && !state.finished){
+    roundControls = `<button class="btn btn-rose" onclick="finishEvent()">إنهاء الفعالية وعرض النتائج</button>`;
+  } else if(state.finished){
+    roundControls = `<div style="color:var(--ok); font-weight:700;">انتهت الفعالية وظهرت النتائج للمشاركين</div>`;
+  }
+
+  let pairingsHtml = "";
+  if(round > 0){
+    const rows = (state.pairings[round]||[]).map(([a,b])=>{
+      const pa = state.participants.find(p=>p.id===a);
+      const pb = state.participants.find(p=>p.id===b);
+      return `<div class="list-row row-between"><span>${esc(pa?.pseudonym)}</span><span class="muted">×</span><span>${esc(pb?.pseudonym)}</span></div>`;
+    }).join("");
+    const skippedNames = (state.skipped[round]||[]).map(id=>state.participants.find(p=>p.id===id)?.pseudonym).join("، ");
+    pairingsHtml = `
+      <div class="card">
+        <div style="font-weight:700; margin-bottom:10px;">توزيع الجولة ${round}</div>
+        ${rows || '<div class="muted">لا يوجد</div>'}
+        ${skippedNames ? `<div class="muted" style="font-size:12px; margin-top:6px;">خارج التوزيع: ${skippedNames}</div>` : ""}
+      </div>`;
+  }
+
+  let finalMatchesHtml = "";
+  if(state.finished){
+    const seen = new Set(); const rows = [];
+    [1,2,3].forEach(r=>{
+      (state.pairings[r]||[]).forEach(([a,b])=>{
+        const yesA = state.responses[r]?.[a]===true, yesB = state.responses[r]?.[b]===true;
+        if(yesA && yesB){
+          const key=[a,b].sort().join("-");
+          if(!seen.has(key)){ seen.add(key);
+            rows.push({pa:state.participants.find(p=>p.id===a), pb:state.participants.find(p=>p.id===b), round:r});
+          }
+        }
+      });
+    });
+    finalMatchesHtml = `
+      <div class="card">
+        <div style="font-weight:700; margin-bottom:10px;">الماتشات النهائية</div>
+        ${rows.length===0 ? '<div class="muted">ما فيه ماتشات متبادلة</div>' :
+          rows.map(row=>`<div class="list-row row-between"><span>❤️ ${esc(row.pa?.pseudonym)} × ${esc(row.pb?.pseudonym)}</span><span class="muted">جولة ${row.round}</span></div>`).join("")}
+      </div>`;
+  }
+
+  const participantsHtml = state.participants.map(p=>`
+    <div class="list-row">
+      <div class="row-between"><b>${esc(p.pseudonym)}</b><span class="muted">${esc(p.realName)}</span></div>
+      <div class="muted" style="font-size:12px; margin-top:4px;">
+        ${PURPOSES.find(x=>x.id===p.purpose)?.label||""}${p.category ? " · "+(CATEGORIES.find(c=>c.id===p.category)?.label||"") : ""}
+        · ${GENDERS.find(g=>g.id===p.gender)?.label||""} · يفضّل: ${PREFER.find(pr=>pr.id===p.prefer)?.label||""}
+      </div>
+    </div>`).join("") || '<div class="muted">ما فيه مشاركين مسجّلين بعد</div>';
+
+  return `
+    <div class="wrap">
+      <div class="row-between" style="margin-bottom:20px;">
+        <button class="top-back" style="margin:0;" onclick="setRole(null)">← رجوع</button>
+        <h2 class="display" style="color:var(--goldSoft); font-size:20px; margin:0;">لوحة المنظم</h2>
+      </div>
+
+      <div class="card">👥 <b>${state.participants.length}</b> <span class="muted">مشترك مسجّل</span></div>
+
+      <div class="card">
+        <div class="row-between" style="margin-bottom:8px;">
+          <b>${round===0 ? "لم تبدأ أي جولة بعد" : "الجولة الحالية: "+round+" من ٣"}</b>
+        </div>
+        ${round>0 && !state.finished ? `<div class="muted" style="font-size:13px; margin-bottom:10px;">
+          ${roundElapsed ? "انتهى وقت الجولة" : "متبقي "+Math.floor(remaining/60)+":"+String(remaining%60).padStart(2,'0')}
+        </div>` : ""}
+        ${roundControls}
+      </div>
+
+      ${pairingsHtml}
+      ${finalMatchesHtml}
+
+      <div class="card">
+        <div style="font-weight:700; margin-bottom:10px;">المشاركون</div>
+        <div style="max-height:280px; overflow-y:auto;">${participantsHtml}</div>
+      </div>
+
+      <div style="margin-top:8px;">
+        ${!ui.confirmReset ? `<button class="btn btn-danger" onclick="ui.confirmReset=true; render()">بدء فعالية جديدة (مسح كل البيانات)</button>` :
+          `<div class="btn-row">
+            <button class="btn btn-danger" onclick="resetEvent()">تأكيد المسح</button>
+            <button class="btn btn-ghost" onclick="ui.confirmReset=false; render()">تراجع</button>
+          </div>`}
+      </div>
+    </div>`;
+}
+
+function startRound(n){
+  const state = loadState();
+  const { pairs, leftover } = runMatching(state.participants, state.pairings);
+  state.currentRound = n;
+  state.roundStartTime = Date.now();
+  state.roundDuration = Math.max(30, Math.round(Number(ui.minutes)*60) || 1200);
+  state.pairings[n] = pairs;
+  state.skipped[n] = leftover;
+  saveState(state);
+  render();
+}
+function finishEvent(){
+  const state = loadState();
+  state.finished = true;
+  saveState(state);
+  render();
+}
+function resetEvent(){
+  saveState(defaultState());
+  ui.confirmReset = false;
+  render();
+}
+
+// ---------- التصيير الرئيسي ----------
+function render(){
+  const state = loadState();
+  const app = document.getElementById("app");
+  if(ui.role === "organizer") app.innerHTML = screenOrganizer(state);
+  else if(ui.role === "participant") app.innerHTML = screenParticipant(state);
+  else app.innerHTML = screenRoleGate();
+}
+
+// تحديث تلقائي كل ثانية لتحديث المؤقتات (وهمي هنا لأنه جهاز واحد، لكن يجهزك للنسخة الحية)
+clearInterval(tickTimer);
+tickTimer = setInterval(()=>{
+  if(ui.role === "participant" || ui.role === "organizer") render();
+}, 1000);
+
+render();
+</script>
+</body>
+</html>
