@@ -10,11 +10,11 @@
    --muted     #A9BAB2  muted parchment
    --danger    #D97A6C  warm red
    Type:
-   Display — 'Amiri' (warm literary Arabic serif, used sparingly for headings)
+   Display — 'Aref Ruqaa' (ornate classical Arabic calligraphic face, used sparingly for headings)
    Body/UI — 'Tajawal' (clean Arabic sans, all interface text)
 ============================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@300;400;500;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Tajawal:wght@300;400;500;700;900&display=swap');
 
 :root{
   --bg:#14201C;
@@ -46,7 +46,7 @@ body{
 a{color:var(--accent);}
 
 h1,h2,h3{
-  font-family:'Amiri',serif;
+  font-family:'Aref Ruqaa',serif;
   font-weight:700;
   margin:0 0 .4em;
   letter-spacing:.01em;
@@ -214,7 +214,7 @@ button:disabled{opacity:.5;cursor:not-allowed;}
 }
 
 .timer{
-  font-family:'Amiri',serif;
+  font-family:'Aref Ruqaa',serif;
   font-size:clamp(3rem,10vw,5rem);
   text-align:center;
   color:var(--accent);
