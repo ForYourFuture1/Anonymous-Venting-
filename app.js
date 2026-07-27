@@ -8,11 +8,14 @@ const participantsRef = db.collection('participants');
 const selectionsRef = db.collection('selections');
 
 /* ============ مولّد الأسماء الوهمية ============
-   يبني اسمًا من صفتين مستوحاة من أجواء "المجلس/الليل" باستخدام
-   بصمة بسيطة مشتقة من وصف المستخدم، حتى يبدو الاسم مرتبطًا به
-   دون كشف أي معلومة حقيقية. */
-const NICK_A = ["نجم","قمر","ياسمين","عنبر","سديم","ندى","فجر","سنا","ريم","ظل","شهاب","ورد","بحر","رمل","سراج"];
-const NICK_B = ["الليل","الشرق","الصمت","البوح","السكينة","الشتاء","الصحراء","الساحل","الغروب","الفجر","الضوء","المرفأ"];
+   يختار كلمة واحدة ذات معنى (أثر، فلك، شمس...) بدل اسم مركّب،
+   باستخدام بصمة من وصف المستخدم لتفادي التكرار. */
+const NICK_WORDS = [
+  "أثر","فلك","شمس","قمر","نجم","سنا","ضياء","وهج","شفق","غسق",
+  "فجر","ندى","غيم","برق","رعد","ظل","صدى","سكون","همس","وله",
+  "شغف","أمل","صفاء","رضا","سلام","طيف","رمل","بحر","موج","نسيم",
+  "ياسمين","ريم","عنبر","مسك","سراج","بدر","هلال","درب","أفق","منار"
+];
 
 function hashText(str){
   let h = 0;
@@ -24,22 +27,15 @@ function hashText(str){
 
 function generateNickname(description, usedNicknames){
   const seedBase = hashText(description || Math.random().toString());
-  for(let attempt=0; attempt<50; attempt++){
+  for(let attempt=0; attempt<NICK_WORDS.length; attempt++){
     const seed = seedBase + attempt*97;
-    const a = NICK_A[seed % NICK_A.length];
-    const b = NICK_B[Math.floor(seed/7) % NICK_B.length];
-    const nick = `${a} ${b}`;
-    if(!usedNicknames.has(nick)) return nick;
+    const word = NICK_WORDS[seed % NICK_WORDS.length];
+    if(!usedNicknames.has(word)) return word;
   }
-  return `مجهول ${Math.floor(Math.random()*900+100)}`;
+  // إذا انتهت الكلمات المتاحة (فعالية كبيرة جدًا)، أعد الاختيار عشوائيًا من نفس القائمة
+  return NICK_WORDS[Math.floor(Math.random()*NICK_WORDS.length)];
 }
 
-function generateCode(){
-  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-  let code = '';
-  for(let i=0;i<6;i++) code += chars[Math.floor(Math.random()*chars.length)];
-  return code;
-}
 
 /* ============ خوارزمية توزيع الجولات ============
    participants: [{id, gender: 'ذكر'|'أنثى', prefer: 'ذكر'|'أنثى'|'الجميع'}]
