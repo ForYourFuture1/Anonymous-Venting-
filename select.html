@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>اختيار من بعد الفعالية</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">بعد الفعالية</div>
+  <h1 id="eventTitle">مجلس</h1>
+  <p>أدخل رمزك الشخصي الذي حصلت عليه عند التسجيل، واختر من رغبت بالتواصل معه ممن جلست معهم.</p>
+
+  <div id="codeCard" class="card">
+    <label>رمزك الشخصي</label>
+    <input type="text" id="codeInput" placeholder="مثال: 7K3P9Q" style="letter-spacing:.15em;">
+    <div class="hint" id="codeErr" style="color:var(--danger);display:none;"></div>
+    <div style="margin-top:18px;"><button id="codeBtn">متابعة</button></div>
+  </div>
+
+  <div id="closedCard" class="card" style="display:none;">
+    <p>باب الاختيار لم يُفتح بعد من قِبل المنظّم. حاول لاحقًا.</p>
+  </div>
+
+  <div id="pickCard" class="card" style="display:none;">
+    <h2>مرحبًا، <span id="myNick"></span></h2>
+    <p>هؤلاء من جلست معهم خلال الجولات. اختر من رغبت بالتواصل معه (يمكنك اختيار أكثر من شخص):</p>
+    <div class="pill-list" id="pillList"></div>
+    <button id="saveBtn" style="width:100%;margin-top:10px;">حفظ اختياري</button>
+    <div class="hint" id="saveStatus"></div>
+  </div>
+
+  <div class="footer-note">اختياراتك لا تُعرض لأي مشارك آخر — يطّلع عليها المنظّم فقط.</div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="app.js"></script>
+<script>
+document.getElementById('eventTitle').textContent = EVENT_NAME;
+document.title = EVENT_NAME + ' — الاختيار';
+
+const savedCode = localStorage.getItem('majlis_code');
+if(savedCode) document.getElementById('codeInput').value = savedCode;
+
+let me = null;
+let met = []; // participants met across all rounds
+let selected = new Set();
+
+document.getElementById('codeBtn').addEventListener('click', async ()=>{
+  const code = document.getElementById('codeInput').value.trim().toUpperCase();
+  const errEl = document.getElementById('codeErr');
+  errEl.style.display='none';
+  if(!code){ errEl.textContent='أدخل رمزك أولًا.'; errEl.style.display='block'; return; }
+
+  const stDoc = await stateRef.get();
+  const st = stDoc.exists ? stDoc.data() : {};
+  if(!st.selectionOpen){
+    document.getElementById('codeCard').style.display='none';
+    document.getElementById('closedCard').style.display='block';
+    return;
+  }
+
+  const snap = await participantsRef.where('code','==',code).limit(1).get();
+  if(snap.empty){
+    errEl.textContent='الرمز غير صحيح.';
+    errEl.style.display='block';
+    return;
+  }
+  me = {id: snap.docs[0].id, ...snap.docs[0].data()};
+
+  const schedDoc = await db.collection('meta').doc('schedule').get();
+  const allP = await participantsRef.get();
+  const byId = {};
+  allP.docs.forEach(d=>byId[d.id] = {id:d.id, ...d.data()});
+
+  const metIds = new Set();
+  if(schedDoc.exists){
+    (schedDoc.data().rounds||[]).forEach(round=>{
+      round.forEach(group=>{
+        if(group.includes(me.id)){
+          group.forEach(id=>{ if(id!==me.id) metIds.add(id); });
+        }
+      });
+    });
+  }
+  met = Array.from(metIds).map(id=>byId[id]).filter(Boolean);
+
+  // استرجاع اختيار سابق إن وجد
+  const prevSel = await selectionsRef.where('code','==',code).limit(1).get();
+  if(!prevSel.empty){
+    (prevSel.docs[0].data().picks||[]).forEach(n=>selected.add(n));
+  }
+
+  document.getElementById('myNick').textContent = me.nickname;
+  renderPills();
+  document.getElementById('codeCard').style.display='none';
+  document.getElementById('pickCard').style.display='block';
+});
+
+function renderPills(){
+  const el = document.getElementById('pillList');
+  if(met.length===0){
+    el.innerHTML = '<p class="hint">لم تُسجَّل أي جلسات لك بعد.</p>';
+    return;
+  }
+  el.innerHTML = met.map(p=>`
+    <div class="pill ${selected.has(p.nickname)?'active':''}" data-nick="${p.nickname}">${p.nickname}</div>
+  `).join('');
+  el.querySelectorAll('.pill').forEach(pill=>{
+    pill.addEventListener('click', ()=>{
+      const nick = pill.dataset.nick;
+      if(selected.has(nick)) selected.delete(nick); else selected.add(nick);
+      pill.classList.toggle('active');
+    });
+  });
+}
+
+document.getElementById('saveBtn').addEventListener('click', async ()=>{
+  const status = document.getElementById('saveStatus');
+  status.textContent = 'جارٍ الحفظ...';
+  const existing = await selectionsRef.where('code','==',me.code).limit(1).get();
+  const payload = {code: me.code, nickname: me.nickname, picks: Array.from(selected), updatedAt: firebase.firestore.FieldValue.serverTimestamp()};
+  if(existing.empty){
+    await selectionsRef.add(payload);
+  }else{
+    await selectionsRef.doc(existing.docs[0].id).set(payload, {merge:true});
+  }
+  status.textContent = 'تم الحفظ ✓';
+});
+</script>
+</body>
+</html>
