@@ -1,0 +1,258 @@
+/* ====== Majlis — Design tokens ======
+   Palette:
+   --bg        #14201C  ink-pine night
+   --surface   #1C2B26  low panel
+   --surface2  #243830  raised panel
+   --line      #33473E  hairline
+   --accent    #E3A75B  lantern amber (signal / primary)
+   --accent-2  #8FB3A3  sage (secondary / calm)
+   --text      #F4EFE4  parchment
+   --muted     #A9BAB2  muted parchment
+   --danger    #D97A6C  warm red
+   Type:
+   Display — 'Aref Ruqaa' (ornate classical Arabic calligraphic face, used sparingly for headings)
+   Body/UI — 'Tajawal' (clean Arabic sans, all interface text)
+============================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Tajawal:wght@300;400;500;700;900&display=swap');
+
+:root{
+  --bg:#14201C;
+  --surface:#1C2B26;
+  --surface2:#243830;
+  --line:#33473E;
+  --accent:#E3A75B;
+  --accent-2:#8FB3A3;
+  --text:#F4EFE4;
+  --muted:#A9BAB2;
+  --danger:#D97A6C;
+  --radius:14px;
+}
+
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:
+    radial-gradient(circle at 50% -10%, #1E2F28 0%, var(--bg) 55%);
+  color:var(--text);
+  font-family:'Tajawal',sans-serif;
+  direction:rtl;
+  line-height:1.7;
+  min-height:100vh;
+}
+
+::selection{background:var(--accent);color:#14201C;}
+
+a{color:var(--accent);}
+
+h1,h2,h3{
+  font-family:'Aref Ruqaa',serif;
+  font-weight:700;
+  margin:0 0 .4em;
+  letter-spacing:.01em;
+}
+h1{font-size:clamp(2rem,5vw,3.2rem);}
+h2{font-size:clamp(1.4rem,3vw,2rem);}
+h3{font-size:1.2rem;color:var(--accent-2);}
+
+p{color:var(--muted);margin:.2em 0 1em;}
+
+.wrap{
+  max-width:760px;
+  margin:0 auto;
+  padding:48px 20px 80px;
+}
+
+.eyebrow{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  font-size:.8rem;
+  letter-spacing:.14em;
+  color:var(--accent-2);
+  margin-bottom:14px;
+}
+.eyebrow::before{
+  content:"";
+  width:7px;height:7px;border-radius:50%;
+  background:var(--accent);
+  box-shadow:0 0 8px 2px rgba(227,167,91,.6);
+}
+
+.card{
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:28px;
+  margin-bottom:20px;
+}
+
+label{
+  display:block;
+  font-size:.9rem;
+  color:var(--accent-2);
+  margin:18px 0 6px;
+}
+label:first-child{margin-top:0;}
+
+input[type=text],input[type=password],textarea,select{
+  width:100%;
+  background:var(--surface2);
+  border:1px solid var(--line);
+  color:var(--text);
+  border-radius:10px;
+  padding:12px 14px;
+  font-family:'Tajawal',sans-serif;
+  font-size:1rem;
+  outline:none;
+  transition:border-color .15s;
+}
+input:focus,textarea:focus,select:focus{border-color:var(--accent);}
+textarea{resize:vertical;min-height:80px;}
+
+.choice-row{display:flex;gap:10px;flex-wrap:wrap;}
+.choice{
+  flex:1;
+  min-width:110px;
+  text-align:center;
+  padding:12px 10px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  cursor:pointer;
+  background:var(--surface2);
+  color:var(--muted);
+  font-size:.92rem;
+  user-select:none;
+  transition:.15s;
+}
+.choice.active{
+  border-color:var(--accent);
+  background:rgba(227,167,91,.12);
+  color:var(--text);
+}
+.choice input{display:none;}
+
+button, .btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  background:var(--accent);
+  color:#1A2620;
+  border:none;
+  border-radius:10px;
+  padding:13px 22px;
+  font-family:'Tajawal',sans-serif;
+  font-weight:700;
+  font-size:1rem;
+  cursor:pointer;
+  transition:transform .1s, filter .15s;
+}
+button:hover,.btn:hover{filter:brightness(1.08);}
+button:active{transform:scale(.98);}
+button.secondary{
+  background:transparent;
+  color:var(--text);
+  border:1px solid var(--line);
+}
+button.ghost{
+  background:transparent;
+  color:var(--accent-2);
+  border:1px dashed var(--line);
+}
+button:disabled{opacity:.5;cursor:not-allowed;}
+
+.hint{font-size:.82rem;color:var(--muted);margin-top:6px;}
+
+.badge{
+  display:inline-block;
+  font-size:.78rem;
+  padding:3px 10px;
+  border-radius:100px;
+  border:1px solid var(--line);
+  color:var(--accent-2);
+}
+
+.row{display:flex;gap:14px;flex-wrap:wrap;align-items:center;}
+.row.between{justify-content:space-between;}
+
+.table{width:100%;border-collapse:collapse;font-size:.92rem;}
+.table th,.table td{
+  text-align:right;
+  padding:10px 8px;
+  border-bottom:1px solid var(--line);
+}
+.table th{color:var(--accent-2);font-weight:500;}
+
+/* ===== Signature element: the majlis circle ===== */
+.majlis{
+  position:relative;
+  width:220px;height:220px;
+  margin:10px auto 30px;
+}
+.majlis .seat{
+  position:absolute;
+  width:14px;height:14px;
+  border-radius:50%;
+  background:var(--surface2);
+  border:1px solid var(--line);
+  top:50%;left:50%;
+  transform-origin:0 0;
+}
+.majlis .seat.lit{
+  background:var(--accent);
+  box-shadow:0 0 14px 3px rgba(227,167,91,.65);
+}
+.majlis .center{
+  position:absolute;
+  top:50%;left:50%;
+  width:8px;height:8px;
+  border-radius:50%;
+  background:var(--accent-2);
+  transform:translate(-50%,-50%);
+  box-shadow:0 0 20px 6px rgba(143,179,163,.35);
+}
+
+.timer{
+  font-family:'Aref Ruqaa',serif;
+  font-size:clamp(3rem,10vw,5rem);
+  text-align:center;
+  color:var(--accent);
+  margin:10px 0;
+  letter-spacing:.03em;
+}
+
+.footer-note{
+  text-align:center;
+  color:var(--muted);
+  font-size:.8rem;
+  margin-top:40px;
+}
+
+.pill-list{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0;}
+.pill{
+  background:var(--surface2);
+  border:1px solid var(--line);
+  border-radius:100px;
+  padding:8px 14px;
+  cursor:pointer;
+  font-size:.9rem;
+}
+.pill.active{border-color:var(--accent);background:rgba(227,167,91,.14);}
+
+.notice{
+  border:1px solid var(--line);
+  border-right:3px solid var(--accent);
+  background:var(--surface2);
+  padding:14px 16px;
+  border-radius:8px;
+  font-size:.92rem;
+  color:var(--text);
+  margin-bottom:18px;
+}
+.notice.danger{border-right-color:var(--danger);}
+
+@media (max-width:520px){
+  .wrap{padding:30px 16px 60px;}
+  .card{padding:20px;}
+}

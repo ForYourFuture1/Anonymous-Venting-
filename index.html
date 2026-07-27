@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>التسجيل</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+
+  <div class="majlis" id="majlis"></div>
+
+  <div class="eyebrow">تسجيل الحضور</div>
+  <h1 id="eventTitle">مجلس</h1>
+  <p>سجّل بياناتك بسرية تامة. لن يظهر اسمك الحقيقي لأي مشارك آخر — سنمنحك اسمًا مستعارًا يستخدمه الجميع خلال الجلسات.</p>
+
+  <div id="formCard" class="card">
+    <label>اسمك (يُستخدم فقط من قِبل المنظّم، ولن يظهر لأحد)</label>
+    <input type="text" id="fName" placeholder="مثال: سارة العتيبي">
+
+    <label>صف نفسك بسطر أو سطرين — سنستوحي منه اسمك المستعار</label>
+    <textarea id="fDesc" placeholder="مثال: أحب الهدوء، أعمل في التصميم، أستمع أكثر مما أتحدث..."></textarea>
+
+    <label>ما هدفك من الحضور؟</label>
+    <div class="choice-row" id="goalRow">
+      <div class="choice" data-val="vent">فضفضة</div>
+      <div class="choice" data-val="meet">تعارف</div>
+      <div class="choice" data-val="listen">مستمع / أعطي نصائح</div>
+    </div>
+
+    <label>جنسك</label>
+    <div class="choice-row" id="genderRow">
+      <div class="choice" data-val="ذكر">ذكر</div>
+      <div class="choice" data-val="أنثى">أنثى</div>
+    </div>
+
+    <label>تفضّل التحدث مع</label>
+    <div class="choice-row" id="preferRow">
+      <div class="choice" data-val="ذكر">ذكور</div>
+      <div class="choice" data-val="أنثى">إناث</div>
+      <div class="choice" data-val="الجميع">الجميع</div>
+    </div>
+
+    <div class="hint" id="formError" style="color:var(--danger);display:none;"></div>
+
+    <div style="margin-top:24px;">
+      <button id="submitBtn" style="width:100%;">تسجيل</button>
+    </div>
+  </div>
+
+  <div id="doneCard" class="card" style="display:none;text-align:center;">
+    <div class="eyebrow" style="justify-content:center;">تم التسجيل</div>
+    <h2>اسمك المستعار خلال الفعالية</h2>
+    <div style="font-family:'Aref Ruqaa',serif;font-size:2.2rem;color:var(--accent);margin:14px 0;" id="nickOut"></div>
+    <p class="hint" style="margin-top:18px;">بعد انتهاء الفعالية، افتح رابط الاختيار من نفس هذا الجهاز والمتصفح — سيتعرف عليك تلقائيًا بدون أي رمز.</p>
+  </div>
+
+  <div class="footer-note">خصوصيتك محفوظة — لا يظهر اسمك الحقيقي لأي مشارك آخر.</div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="app.js"></script>
+<script>
+document.getElementById('eventTitle').textContent = EVENT_NAME;
+document.title = EVENT_NAME + ' — التسجيل';
+
+// رسم دائرة المجلس (العنصر المميز)
+(function drawMajlis(){
+  const el = document.getElementById('majlis');
+  const n = 10, r = 100;
+  el.innerHTML = '<div class="center"></div>';
+  for(let i=0;i<n;i++){
+    const angle = (i/n) * 2*Math.PI;
+    const x = 110 + r*Math.cos(angle) - 7;
+    const y = 110 + r*Math.sin(angle) - 7;
+    const seat = document.createElement('div');
+    seat.className = 'seat' + (Math.random()<0.35 ? ' lit':'');
+    seat.style.left = x+'px';
+    seat.style.top = y+'px';
+    seat.style.transform = 'none';
+    el.appendChild(seat);
+  }
+})();
+
+let goal=null, gender=null, prefer=null;
+function wireChoices(rowId, onPick){
+  document.getElementById(rowId).querySelectorAll('.choice').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      el.parentElement.querySelectorAll('.choice').forEach(c=>c.classList.remove('active'));
+      el.classList.add('active');
+      onPick(el.dataset.val);
+    });
+  });
+}
+wireChoices('goalRow', v=>goal=v);
+wireChoices('genderRow', v=>gender=v);
+wireChoices('preferRow', v=>prefer=v);
+
+document.getElementById('submitBtn').addEventListener('click', async ()=>{
+  const name = document.getElementById('fName').value.trim();
+  const desc = document.getElementById('fDesc').value.trim();
+  const errEl = document.getElementById('formError');
+  errEl.style.display='none';
+
+  if(!name || !desc || !goal || !gender || !prefer){
+    errEl.textContent = 'الرجاء تعبئة جميع الحقول واختيار كل الخيارات قبل التسجيل.';
+    errEl.style.display='block';
+    return;
+  }
+
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true; btn.textContent = 'جارٍ التسجيل...';
+
+  try{
+    const snap = await participantsRef.get();
+    const used = new Set(snap.docs.map(d=>d.data().nickname));
+    const nickname = generateNickname(desc, used);
+
+    const docRef = await participantsRef.add({
+      name, description: desc, goal, gender, prefer,
+      nickname,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    localStorage.setItem('majlis_pid', docRef.id);
+    localStorage.setItem('majlis_nick', nickname);
+
+    document.getElementById('formCard').style.display='none';
+    document.getElementById('nickOut').textContent = nickname;
+    document.getElementById('doneCard').style.display='block';
+  }catch(e){
+    console.error(e);
+    errEl.textContent = 'تعذّر إتمام التسجيل. تأكد من إعداد Firebase بشكل صحيح (راجع README).';
+    errEl.style.display='block';
+    btn.disabled=false; btn.textContent='تسجيل';
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>لوحة المنظم</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+
+  <div id="gate" class="card">
+    <div class="eyebrow">لوحة المنظم</div>
+    <h2>الدخول</h2>
+    <label>كلمة المرور</label>
+    <input type="password" id="pw">
+    <div class="hint" id="pwErr" style="color:var(--danger);display:none;">كلمة مرور غير صحيحة</div>
+    <div style="margin-top:18px;"><button id="pwBtn">دخول</button></div>
+  </div>
+
+  <div id="panel" style="display:none;">
+    <div class="eyebrow">لوحة المنظم</div>
+    <h1 id="eventTitle">مجلس</h1>
+
+    <!-- المسجّلون -->
+    <div class="card">
+      <div class="row between">
+        <h2 style="margin:0;">المسجّلون</h2>
+        <span class="badge" id="countBadge">0</span>
+      </div>
+      <table class="table" id="regTable" style="margin-top:14px;">
+        <thead><tr><th>الاسم</th><th>الاسم المستعار</th><th>الهدف</th><th>الجنس</th><th>يفضّل</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- التوزيع -->
+    <div class="card">
+      <h2>توزيع الجولات</h2>
+      <p>يوزّع النظام المسجلين تلقائيًا على ثلاث جولات، كل جولة ٢٠ دقيقة، مع مراعاة تفضيلات كل شخص وعدم تكرار نفس الشريك.</p>
+      <button id="genBtn">توليد التوزيع (٣ جولات)</button>
+      <span class="hint" id="genHint"></span>
+    </div>
+
+    <!-- الجولة الحالية -->
+    <div class="card" id="roundCard" style="display:none;">
+      <div class="row between">
+        <h2 style="margin:0;">الجولة <span id="roundNum">١</span> من ٣</h2>
+        <span class="badge" id="roundStatus">لم تبدأ</span>
+      </div>
+
+      <div class="timer" id="clock">20:00</div>
+
+      <div class="row" style="justify-content:center;margin-bottom:20px;">
+        <button id="startBtn">ابدأ الجولة</button>
+        <button id="pauseBtn" class="secondary" style="display:none;">إيقاف مؤقت</button>
+        <button id="resumeBtn" class="secondary" style="display:none;">استئناف</button>
+        <button id="nextBtn" class="secondary" style="display:none;">الانتقال للجولة التالية</button>
+      </div>
+
+      <div id="groupsList"></div>
+    </div>
+
+    <!-- فتح الاختيار -->
+    <div class="card" id="openSelCard" style="display:none;">
+      <h2>بعد انتهاء الجولات</h2>
+      <p>افتح باب الاختيار لكي يختار كل مشارك من جلس معهم من يرغب بالتواصل معه بعد الفعالية. شارك رابط صفحة الاختيار مع الحضور.</p>
+      <button id="openSelBtn">فتح باب الاختيار</button>
+      <span class="hint" id="openSelStatus"></span>
+    </div>
+
+    <!-- نتائج المطابقة -->
+    <div class="card" id="matchesCard" style="display:none;">
+      <h2>الاختيارات والمطابقات</h2>
+      <p>الأسماء المظللة بالأمان <span class="badge" style="border-color:var(--accent);color:var(--accent);">تطابق متبادل</span> يعني أن الطرفين اختار كل منهما الآخر.</p>
+      <div id="matchesList"></div>
+    </div>
+
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="app.js"></script>
+<script>
+document.getElementById('eventTitle').textContent = EVENT_NAME;
+document.title = EVENT_NAME + ' — لوحة المنظم';
+
+document.getElementById('pwBtn').addEventListener('click', ()=>{
+  if(document.getElementById('pw').value === ADMIN_PASSWORD){
+    document.getElementById('gate').style.display='none';
+    document.getElementById('panel').style.display='block';
+    boot();
+  }else{
+    document.getElementById('pwErr').style.display='block';
+  }
+});
+
+let participants = []; // {id,name,nickname,goal,gender,prefer}
+let byId = {};
+let schedule = null; // {rounds: [[ [id,id],... ], ...]}
+let scheduleDocRef = db.collection('meta').doc('schedule');
+let timerInterval = null;
+
+function boot(){
+  participantsRef.orderBy('createdAt').onSnapshot(snap=>{
+    participants = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    byId = Object.fromEntries(participants.map(p=>[p.id,p]));
+    renderRegistrants();
+    renderGroups(); // refresh nicknames if participants changed
+  });
+
+  scheduleDocRef.onSnapshot(doc=>{
+    schedule = doc.exists ? doc.data() : null;
+    document.getElementById('roundCard').style.display = schedule ? 'block':'none';
+    document.getElementById('openSelCard').style.display = schedule ? 'block':'none';
+    if(schedule) renderGroups();
+  });
+
+  stateRef.onSnapshot(doc=>{
+    const st = doc.exists ? doc.data() : {round:0,status:'idle'};
+    renderTimerState(st);
+    if(st.selectionOpen){
+      document.getElementById('matchesCard').style.display='block';
+      renderMatches();
+    }
+  });
+
+  selectionsRef.onSnapshot(()=>{ renderMatches(); });
+}
+
+function renderRegistrants(){
+  document.getElementById('countBadge').textContent = participants.length;
+  const tbody = document.querySelector('#regTable tbody');
+  tbody.innerHTML = participants.map(p=>`
+    <tr>
+      <td>${escapeHtml(p.name)}</td>
+      <td>${escapeHtml(p.nickname)}</td>
+      <td>${goalLabel(p.goal)}</td>
+      <td>${p.gender}</td>
+      <td>${p.prefer}</td>
+    </tr>`).join('');
+}
+
+function escapeHtml(s){
+  return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+document.getElementById('genBtn').addEventListener('click', async ()=>{
+  const hint = document.getElementById('genHint');
+  if(participants.length < 2){
+    hint.textContent = 'تحتاج مسجّلَين اثنين على الأقل.';
+    return;
+  }
+  hint.textContent = 'جارٍ التوليد...';
+  const simple = participants.map(p=>({id:p.id, gender:p.gender, prefer:p.prefer}));
+  const rounds = generateSchedule(simple, 3);
+  await scheduleDocRef.set({rounds, generatedAt: firebase.firestore.FieldValue.serverTimestamp()});
+  await stateRef.set({round:1, status:'idle', selectionOpen:false}, {merge:true});
+  hint.textContent = 'تم التوليد ✓';
+});
+
+function renderGroups(){
+  if(!schedule) return;
+  stateRef.get().then(doc=>{
+    const st = doc.exists? doc.data() : {round:1};
+    const roundIdx = (st.round||1) - 1;
+    document.getElementById('roundNum').textContent = arabicNum(st.round||1);
+    const groups = schedule.rounds[roundIdx] || [];
+    const el = document.getElementById('groupsList');
+    el.innerHTML = groups.map((g,i)=>{
+      const names = g.map(id => byId[id] ? byId[id].nickname : '؟').join(' + ');
+      const size = g.length===1 ? '<span class="badge" style="border-color:var(--danger);color:var(--danger);">بلا شريك هذه الجولة</span>' : '';
+      return `<div class="row between" style="padding:10px 0;border-bottom:1px solid var(--line);">
+        <span>مجموعة ${i+1}: ${names}</span> ${size}
+      </div>`;
+    }).join('') || '<p>لا توجد مجموعات لهذه الجولة.</p>';
+  });
+}
+
+function arabicNum(n){ return ['','١','٢','٣','٤','٥'][n] || n; }
+
+/* ===== المؤقت ===== */
+document.getElementById('startBtn').addEventListener('click', async ()=>{
+  const doc = await stateRef.get();
+  const round = (doc.exists && doc.data().round) || 1;
+  await stateRef.set({round, status:'running', endsAt: Date.now() + 20*60*1000}, {merge:true});
+});
+document.getElementById('pauseBtn').addEventListener('click', async ()=>{
+  const doc = await stateRef.get();
+  const st = doc.data();
+  const remaining = Math.max(0, st.endsAt - Date.now());
+  await stateRef.set({status:'paused', remaining}, {merge:true});
+});
+document.getElementById('resumeBtn').addEventListener('click', async ()=>{
+  const doc = await stateRef.get();
+  const st = doc.data();
+  await stateRef.set({status:'running', endsAt: Date.now() + (st.remaining||0)}, {merge:true});
+});
+document.getElementById('nextBtn').addEventListener('click', async ()=>{
+  const doc = await stateRef.get();
+  const st = doc.data();
+  const nextRound = Math.min(3, (st.round||1)+1);
+  await stateRef.set({round: nextRound, status:'idle', endsAt:null, remaining:null}, {merge:true});
+  renderGroups();
+});
+document.getElementById('openSelBtn').addEventListener('click', async ()=>{
+  await stateRef.set({selectionOpen:true}, {merge:true});
+  document.getElementById('openSelStatus').textContent = 'باب الاختيار مفتوح الآن ✓';
+});
+
+function renderTimerState(st){
+  clearInterval(timerInterval);
+  const statusEl = document.getElementById('roundStatus');
+  const startBtn = document.getElementById('startBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const resumeBtn = document.getElementById('resumeBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  document.getElementById('roundNum').textContent = arabicNum(st.round||1);
+
+  startBtn.style.display = st.status==='idle' ? 'inline-flex':'none';
+  pauseBtn.style.display = st.status==='running' ? 'inline-flex':'none';
+  resumeBtn.style.display = st.status==='paused' ? 'inline-flex':'none';
+  nextBtn.style.display = (st.status==='paused' || (st.status==='running')) ? 'inline-flex':'none';
+
+  if(st.status==='idle'){ statusEl.textContent='لم تبدأ'; document.getElementById('clock').textContent='20:00'; }
+  if(st.status==='paused'){ statusEl.textContent='إيقاف مؤقت'; document.getElementById('clock').textContent = fmtClock((st.remaining||0)/1000); }
+  if(st.status==='running'){
+    statusEl.textContent='جارية الآن';
+    timerInterval = setInterval(()=>{
+      const remain = (st.endsAt - Date.now())/1000;
+      document.getElementById('clock').textContent = fmtClock(remain);
+      if(remain<=0){
+        clearInterval(timerInterval);
+        stateRef.set({status:'paused', remaining:0}, {merge:true});
+      }
+    }, 1000);
+  }
+  renderGroups();
+}
+
+/* ===== المطابقات ===== */
+async function renderMatches(){
+  if(!document.getElementById('matchesCard').style.display) return;
+  const snap = await selectionsRef.get();
+  const picks = {}; // participant id -> [pickedNicknames]
+  snap.docs.forEach(d=>{
+    const data = d.data();
+    picks[data.pid] = data.picks || [];
+  });
+
+  const el = document.getElementById('matchesList');
+  el.innerHTML = participants.map(p=>{
+    const mine = picks[p.id] || [];
+    if(mine.length===0 && !Object.values(picks).some(arr=>arr.includes(p.nickname))) return '';
+    const items = mine.map(nick=>{
+      const other = participants.find(x=>x.nickname===nick);
+      const mutual = other && (picks[other.id]||[]).includes(p.nickname);
+      return `<span class="badge" style="margin-left:6px;${mutual?'border-color:var(--accent);color:var(--accent);':''}">${escapeHtml(nick)}${mutual?' ✓ متبادل':''}</span>`;
+    }).join(' ');
+    return `<div style="padding:10px 0;border-bottom:1px solid var(--line);">
+      <b>${escapeHtml(p.nickname)}</b> (${escapeHtml(p.name)}) اختار: ${items || '<span class="hint">لا شيء بعد</span>'}
+    </div>`;
+  }).join('') || '<p class="hint">لا اختيارات مسجّلة بعد.</p>';
+}
+</script>
+</body>
+</html>
