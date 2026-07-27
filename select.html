@@ -10,13 +10,14 @@
 <div class="wrap">
   <div class="eyebrow">بعد الفعالية</div>
   <h1 id="eventTitle">مجلس</h1>
-  <p>أدخل رمزك الشخصي الذي حصلت عليه عند التسجيل، واختر من رغبت بالتواصل معه ممن جلست معهم.</p>
+  <p>افتح هذه الصفحة من نفس الجهاز والمتصفح اللي سجّلت فيه — سنتعرف عليك تلقائيًا.</p>
 
-  <div id="codeCard" class="card">
-    <label>رمزك الشخصي</label>
-    <input type="text" id="codeInput" placeholder="مثال: 7K3P9Q" style="letter-spacing:.15em;">
-    <div class="hint" id="codeErr" style="color:var(--danger);display:none;"></div>
-    <div style="margin-top:18px;"><button id="codeBtn">متابعة</button></div>
+  <div id="loadingCard" class="card">
+    <p class="hint">جارٍ التحقق...</p>
+  </div>
+
+  <div id="notFoundCard" class="card" style="display:none;">
+    <p>لم نتعرف عليك من هذا الجهاز. تأكد أنك تفتح هذه الصفحة من نفس المتصفح الذي سجّلت فيه بياناتك، أو راجع المنظّم.</p>
   </div>
 
   <div id="closedCard" class="card" style="display:none;">
@@ -42,34 +43,27 @@
 document.getElementById('eventTitle').textContent = EVENT_NAME;
 document.title = EVENT_NAME + ' — الاختيار';
 
-const savedCode = localStorage.getItem('majlis_code');
-if(savedCode) document.getElementById('codeInput').value = savedCode;
-
 let me = null;
 let met = []; // participants met across all rounds
 let selected = new Set();
 
-document.getElementById('codeBtn').addEventListener('click', async ()=>{
-  const code = document.getElementById('codeInput').value.trim().toUpperCase();
-  const errEl = document.getElementById('codeErr');
-  errEl.style.display='none';
-  if(!code){ errEl.textContent='أدخل رمزك أولًا.'; errEl.style.display='block'; return; }
+function showOnly(id){
+  ['loadingCard','notFoundCard','closedCard','pickCard'].forEach(x=>{
+    document.getElementById(x).style.display = (x===id) ? 'block':'none';
+  });
+}
+
+(async function init(){
+  const pid = localStorage.getItem('majlis_pid');
+  if(!pid){ showOnly('notFoundCard'); return; }
 
   const stDoc = await stateRef.get();
   const st = stDoc.exists ? stDoc.data() : {};
-  if(!st.selectionOpen){
-    document.getElementById('codeCard').style.display='none';
-    document.getElementById('closedCard').style.display='block';
-    return;
-  }
+  if(!st.selectionOpen){ showOnly('closedCard'); return; }
 
-  const snap = await participantsRef.where('code','==',code).limit(1).get();
-  if(snap.empty){
-    errEl.textContent='الرمز غير صحيح.';
-    errEl.style.display='block';
-    return;
-  }
-  me = {id: snap.docs[0].id, ...snap.docs[0].data()};
+  const meDoc = await participantsRef.doc(pid).get();
+  if(!meDoc.exists){ showOnly('notFoundCard'); return; }
+  me = {id: meDoc.id, ...meDoc.data()};
 
   const schedDoc = await db.collection('meta').doc('schedule').get();
   const allP = await participantsRef.get();
@@ -89,16 +83,15 @@ document.getElementById('codeBtn').addEventListener('click', async ()=>{
   met = Array.from(metIds).map(id=>byId[id]).filter(Boolean);
 
   // استرجاع اختيار سابق إن وجد
-  const prevSel = await selectionsRef.where('code','==',code).limit(1).get();
+  const prevSel = await selectionsRef.where('pid','==',pid).limit(1).get();
   if(!prevSel.empty){
     (prevSel.docs[0].data().picks||[]).forEach(n=>selected.add(n));
   }
 
   document.getElementById('myNick').textContent = me.nickname;
   renderPills();
-  document.getElementById('codeCard').style.display='none';
-  document.getElementById('pickCard').style.display='block';
-});
+  showOnly('pickCard');
+})();
 
 function renderPills(){
   const el = document.getElementById('pillList');
@@ -121,8 +114,8 @@ function renderPills(){
 document.getElementById('saveBtn').addEventListener('click', async ()=>{
   const status = document.getElementById('saveStatus');
   status.textContent = 'جارٍ الحفظ...';
-  const existing = await selectionsRef.where('code','==',me.code).limit(1).get();
-  const payload = {code: me.code, nickname: me.nickname, picks: Array.from(selected), updatedAt: firebase.firestore.FieldValue.serverTimestamp()};
+  const existing = await selectionsRef.where('pid','==',me.id).limit(1).get();
+  const payload = {pid: me.id, nickname: me.nickname, picks: Array.from(selected), updatedAt: firebase.firestore.FieldValue.serverTimestamp()};
   if(existing.empty){
     await selectionsRef.add(payload);
   }else{

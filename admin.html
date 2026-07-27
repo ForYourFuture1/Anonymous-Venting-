@@ -97,7 +97,7 @@ document.getElementById('pwBtn').addEventListener('click', ()=>{
   }
 });
 
-let participants = []; // {id,name,nickname,goal,gender,prefer,code}
+let participants = []; // {id,name,nickname,goal,gender,prefer}
 let byId = {};
 let schedule = null; // {rounds: [[ [id,id],... ], ...]}
 let scheduleDocRef = db.collection('meta').doc('schedule');
@@ -244,19 +244,19 @@ function renderTimerState(st){
 async function renderMatches(){
   if(!document.getElementById('matchesCard').style.display) return;
   const snap = await selectionsRef.get();
-  const picks = {}; // code -> [pickedNicknames]
+  const picks = {}; // participant id -> [pickedNicknames]
   snap.docs.forEach(d=>{
     const data = d.data();
-    picks[data.code] = data.picks || [];
+    picks[data.pid] = data.picks || [];
   });
 
   const el = document.getElementById('matchesList');
   el.innerHTML = participants.map(p=>{
-    const mine = picks[p.code] || [];
+    const mine = picks[p.id] || [];
     if(mine.length===0 && !Object.values(picks).some(arr=>arr.includes(p.nickname))) return '';
     const items = mine.map(nick=>{
       const other = participants.find(x=>x.nickname===nick);
-      const mutual = other && (picks[other.code]||[]).includes(p.nickname);
+      const mutual = other && (picks[other.id]||[]).includes(p.nickname);
       return `<span class="badge" style="margin-left:6px;${mutual?'border-color:var(--accent);color:var(--accent);':''}">${escapeHtml(nick)}${mutual?' ✓ متبادل':''}</span>`;
     }).join(' ');
     return `<div style="padding:10px 0;border-bottom:1px solid var(--line);">
