@@ -10,7 +10,7 @@ const firebaseConfig = {
 };
 
 // كلمة مرور بسيطة لدخول لوحة المنظم (غيّرها قبل النشر)
-const ADMIN_PASSWORD = "1234";
+const ADMIN_PASSWORD = "970324";
 
 // اسم الفعالية (يظهر في العناوين)
 const EVENT_NAME = "فضفضة خلف الستار";
