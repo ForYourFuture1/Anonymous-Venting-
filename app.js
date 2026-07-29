@@ -51,12 +51,16 @@ function phoneKey(phone){
 /* ============ مولّد الأسماء الوهمية ============
    يختار كلمة واحدة ذات معنى (أثر، فلك، شمس...) بدل اسم مركّب،
    باستخدام بصمة من وصف المستخدم لتفادي التكرار. */
-const NICK_WORDS = [
-  "أثر","فلك","شمس","قمر","نجم","سنا","ضياء","وهج","شفق","غسق",
-  "فجر","ندى","غيم","برق","رعد","ظل","صدى","سكون","همس","وله",
-  "شغف","أمل","صفاء","رضا","سلام","طيف","رمل","بحر","موج","نسيم",
-  "ياسمين","ريم","عنبر","مسك","سراج","بدر","هلال","درب","أفق","منار"
+/* عبارات وكلمات محايدة مبتكرة (مفاهيم، مو أسماء أعلام) تصلح للجنسين */
+const NICK_NEUTRAL = [
+  "رسالة مهمة","مستقبل","حياة","شعاع","هدوء","أمل جديد","لحظة صدق",
+  "خطوة أولى","نقطة تحوّل","صوت داخلي","أثر باقٍ","طريق مختلف",
+  "فكرة جديدة","نجم بعيد","طاقة إيجابية","بداية جديدة","أفق","درب",
+  "فلك","شمس","قمر","سكون","صفاء","سلام","بحر","نسيم"
 ];
+/* شخصيات علمية وثقافية معروفة وغير خلافية — مفصولة حسب الجنس لتفادي تعارض ملحوظ */
+const NICK_MASC = ["أينشتاين","نيوتن","ابن سينا","الخوارزمي","ابن رشد","دافنشي","أرسطو","سقراط","بدر","هلال"];
+const NICK_FEM  = ["مدام كوري","فيروز","أم كلثوم","رابعة العدوية","مي زيادة","ياسمين","ريم","سنا","ندى","منار"];
 
 function hashText(str){
   let h = 0;
@@ -66,15 +70,17 @@ function hashText(str){
   return h;
 }
 
-function generateNickname(description, usedNicknames){
+function generateNickname(description, usedNicknames, gender){
+  const genderWords = gender === 'أنثى' ? NICK_FEM : NICK_MASC;
+  const pool = [...NICK_NEUTRAL, ...genderWords];
   const seedBase = hashText(description || Math.random().toString());
-  for(let attempt=0; attempt<NICK_WORDS.length; attempt++){
+  for(let attempt=0; attempt<pool.length; attempt++){
     const seed = seedBase + attempt*97;
-    const word = NICK_WORDS[seed % NICK_WORDS.length];
+    const word = pool[seed % pool.length];
     if(!usedNicknames.has(word)) return word;
   }
   // إذا انتهت الكلمات المتاحة (فعالية كبيرة جدًا)، أعد الاختيار عشوائيًا من نفس القائمة
-  return NICK_WORDS[Math.floor(Math.random()*NICK_WORDS.length)];
+  return pool[Math.floor(Math.random()*pool.length)];
 }
 
 
