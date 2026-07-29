@@ -99,7 +99,7 @@ document.getElementById('pwBtn').addEventListener('click', ()=>{
 
 let participants = []; // {id,name,nickname,goal,gender,prefer}
 let byId = {};
-let schedule = null; // {rounds: [[ [id,id],... ], ...]}
+let schedule = null; // {rounds: [[ [id,id],... ], ...]} — محوّل من صيغة Firestore الآمنة عند القراءة
 let scheduleDocRef = db.collection('meta').doc('schedule');
 let timerInterval = null;
 
@@ -112,7 +112,7 @@ function boot(){
   });
 
   scheduleDocRef.onSnapshot(doc=>{
-    schedule = doc.exists ? doc.data() : null;
+    schedule = doc.exists ? {rounds: scheduleFromFirestore(doc.data().rounds)} : null;
     document.getElementById('roundCard').style.display = schedule ? 'block':'none';
     document.getElementById('openSelCard').style.display = schedule ? 'block':'none';
     if(schedule) renderGroups();
@@ -154,11 +154,16 @@ document.getElementById('genBtn').addEventListener('click', async ()=>{
     return;
   }
   hint.textContent = 'جارٍ التوليد...';
-  const simple = participants.map(p=>({id:p.id, gender:p.gender, prefer:p.prefer}));
-  const rounds = generateSchedule(simple, 3);
-  await scheduleDocRef.set({rounds, generatedAt: firebase.firestore.FieldValue.serverTimestamp()});
-  await stateRef.set({round:1, status:'idle', selectionOpen:false}, {merge:true});
-  hint.textContent = 'تم التوليد ✓';
+  try{
+    const simple = participants.map(p=>({id:p.id, gender:p.gender, prefer:p.prefer}));
+    const rounds = generateSchedule(simple, 3);
+    await scheduleDocRef.set({rounds: scheduleToFirestore(rounds), generatedAt: firebase.firestore.FieldValue.serverTimestamp()});
+    await stateRef.set({round:1, status:'idle', selectionOpen:false}, {merge:true});
+    hint.textContent = 'تم التوليد ✓';
+  }catch(e){
+    console.error(e);
+    hint.textContent = 'تعذّر التوليد: ' + (e.message || 'خطأ غير متوقع');
+  }
 });
 
 function renderGroups(){

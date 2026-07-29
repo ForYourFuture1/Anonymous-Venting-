@@ -111,6 +111,18 @@ function generateSchedule(participants, rounds=3){
   return allRounds;
 }
 
+/* ============ تحويل التوزيع لصيغة يقبلها Firestore ============
+   Firestore لا يقبل تخزين مصفوفة داخل مصفوفة مباشرة (rounds[round][group]
+   كانت array of array of array وتفشل الكتابة بصمت)، فنغلّف كل مستوى
+   بكائن (map) بدل مصفوفة خام قبل الحفظ، ونعكس التحويل عند القراءة. */
+function scheduleToFirestore(rounds){
+  return rounds.map(round => ({ groups: round.map(group => ({ members: group })) }));
+}
+function scheduleFromFirestore(rounds){
+  if(!rounds) return [];
+  return rounds.map(r => (r.groups||[]).map(g => g.members||[]));
+}
+
 /* ============ أدوات مساعدة عامة ============ */
 function fmtClock(totalSeconds){
   const s = Math.max(0, Math.round(totalSeconds));

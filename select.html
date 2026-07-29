@@ -72,7 +72,7 @@ function showOnly(id){
 
   const metIds = new Set();
   if(schedDoc.exists){
-    (schedDoc.data().rounds||[]).forEach(round=>{
+    scheduleFromFirestore(schedDoc.data().rounds).forEach(round=>{
       round.forEach(group=>{
         if(group.includes(me.id)){
           group.forEach(id=>{ if(id!==me.id) metIds.add(id); });
