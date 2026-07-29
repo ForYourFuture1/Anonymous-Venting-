@@ -85,7 +85,7 @@ function generateNickname(description, usedNicknames, gender){
 
 
 /* ============ خوارزمية توزيع الجولات ============
-   participants: [{id, gender: 'ذكر'|'أنثى', prefer: 'ذكر'|'أنثى'|'الجميع'}]
+   participants: [{id, gender: 'ذكر'|'أنثى', prefer: 'ذكر'|'أنثى'|'الجميع', goal: 'vent'|'meet'|'listen'}]
    rounds: عدد الجولات
    ترجع: [ [ [id,id], [id,id,id]... ], ... ] بطول = rounds
 */
@@ -93,6 +93,19 @@ function compatible(a, b){
   const aOk = a.prefer === 'الجميع' || a.prefer === b.gender;
   const bOk = b.prefer === 'الجميع' || b.prefer === a.gender;
   return aOk && bOk;
+}
+
+/* تقييم جودة تطابق الهدف بين شخصين: فضفضة+مستمع أو تعارف+تعارف = الأفضل،
+   مستمع+مستمع = الأضعف (نتفاداه ما أمكن)، وباقي التوليفات متوسطة */
+function goalScore(a, b){
+  const idealVentListen = (a.goal==='vent' && b.goal==='listen') || (a.goal==='listen' && b.goal==='vent');
+  const bothMeet = a.goal==='meet' && b.goal==='meet';
+  if(idealVentListen || bothMeet) return 3;
+  const bothListen = a.goal==='listen' && b.goal==='listen';
+  if(bothListen) return 1;
+  const meetMismatch = (a.goal==='meet') !== (b.goal==='meet');
+  if(meetMismatch) return 1;
+  return 2;
 }
 
 function shuffle(arr){
@@ -104,47 +117,43 @@ function shuffle(arr){
   return a;
 }
 
-function buildRound(participants, metPairs){
+function buildRound(participants, metPairs, avoidPairs){
+  avoidPairs = avoidPairs || new Set();
   const pool = shuffle(participants);
   const used = new Set();
   const groups = [];
 
-  for(const p of pool){
-    if(used.has(p.id)) continue;
-    // ابحث عن شريك متوافق لم يُقابله من قبل
-    let partner = null;
-    for(const q of pool){
-      if(q.id === p.id || used.has(q.id)) continue;
-      const key = [p.id,q.id].sort().join('|');
-      if(metPairs.has(key)) continue;
-      if(!compatible(p,q)) continue;
-      partner = q;
-      break;
-    }
-    if(partner){
-      used.add(p.id); used.add(partner.id);
-      groups.push([p.id, partner.id]);
-      metPairs.add([p.id,partner.id].sort().join('|'));
-    }
-  }
-  // من تبقّى بلا شريك: أضفه لأقرب مجموعة متوافقة معه (يصبح ثلاثيًا) وإلا يبقى منفردًا هذه الجولة
-  const leftovers = pool.filter(p=>!used.has(p.id));
-  for(const p of leftovers){
-    let placed = false;
-    for(const g of groups){
-      if(g.length>=3) continue;
-      const gp = participants.filter(x=>g.includes(x.id));
-      if(gp.every(m=>compatible(p,m))){
-        g.push(p.id);
-        used.add(p.id);
-        placed = true;
-        break;
+  // يبحث عن أفضل شريك متاح حسب تطابق الهدف؛ allowRepeat=false يستبعد من قابله من قبل.
+  // avoidPairs (شركاء الجولة الفائتة مباشرة) مستبعدة دائمًا مهما حصل — لا تكرار جولتين متتاليتين أبدًا.
+  function pairPass(allowRepeat){
+    for(const p of pool){
+      if(used.has(p.id)) continue;
+      let best = null, bestScore = -1;
+      for(const q of pool){
+        if(q.id === p.id || used.has(q.id)) continue;
+        if(!compatible(p,q)) continue;
+        const key = [p.id,q.id].sort().join('|');
+        if(avoidPairs.has(key)) continue;
+        if(!allowRepeat && metPairs.has(key)) continue;
+        const score = goalScore(p,q);
+        if(score > bestScore){ bestScore = score; best = q; }
+      }
+      if(best){
+        used.add(p.id); used.add(best.id);
+        groups.push([p.id, best.id]);
+        metPairs.add([p.id,best.id].sort().join('|'));
       }
     }
-    if(!placed){
-      groups.push([p.id]); // بلا شريك متاح هذه الجولة
-      used.add(p.id);
-    }
+  }
+
+  pairPass(false); // المحاولة الأساسية: أفضل تطابق هدف بدون تكرار شريك سابق
+  pairPass(true);  // تمرير أخير: يسمح بتكرار شريك من جولة أقدم (لا الجولة الفائتة) لتفادي جلوس أي شخص بمفرده
+
+  // من تبقّى (نادرًا) بلا أي شريك متاح إطلاقًا: يبقى بمفرده هذه الجولة
+  const leftovers = pool.filter(p=>!used.has(p.id));
+  for(const p of leftovers){
+    groups.push([p.id]); // بلا شريك متاح هذه الجولة
+    used.add(p.id);
   }
   return groups;
 }
@@ -152,8 +161,15 @@ function buildRound(participants, metPairs){
 function generateSchedule(participants, rounds=3){
   const metPairs = new Set();
   const allRounds = [];
+  let lastRoundPairs = new Set();
   for(let r=0;r<rounds;r++){
-    allRounds.push(buildRound(participants, metPairs));
+    const round = buildRound(participants, metPairs, lastRoundPairs);
+    allRounds.push(round);
+    // سجّل أزواج هذه الجولة بالذات فقط، لمنع تكرارها بالجولة التالية مباشرة
+    lastRoundPairs = new Set();
+    round.forEach(group=>{
+      if(group.length===2) lastRoundPairs.add([group[0],group[1]].sort().join('|'));
+    });
   }
   return allRounds;
 }

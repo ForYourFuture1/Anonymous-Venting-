@@ -283,7 +283,7 @@ document.getElementById('genBtn').addEventListener('click', async ()=>{
   }
   hint.textContent = 'جارٍ التوليد...';
   try{
-    const simple = paidParticipants.map(p=>({id:p.id, gender:p.gender, prefer:p.prefer}));
+    const simple = paidParticipants.map(p=>({id:p.id, gender:p.gender, prefer:p.prefer, goal:p.goal}));
     const rounds = generateSchedule(simple, 3);
     await scheduleDocRef.set({rounds: scheduleToFirestore(rounds), generatedAt: firebase.firestore.FieldValue.serverTimestamp()});
     await stateRef.set({round:1, status:'idle', selectionOpen:false, resultsOpen:false}, {merge:true});
