@@ -13,13 +13,23 @@
 
   <div class="eyebrow">تسجيل الحضور</div>
   <h1 id="eventTitle">مجلس</h1>
-  <p>سجّل بياناتك بسرية تامة. لن يظهر اسمك الحقيقي لأي مشارك آخر — سنمنحك اسمًا مستعارًا يستخدمه الجميع خلال الجلسات.</p>
+  <p>سجّل بياناتك بسرية تامة. سيتواصل معك المنظّم عبر واتساب لتأكيد حضورك، وبعدها ستُمنح اسمًا مستعارًا يستخدمه الجميع خلال الجلسات.</p>
 
-  <div id="formCard" class="card">
+  <!-- خطوة الجوال أولًا -->
+  <div id="phoneCard" class="card">
+    <label>رقم جوالك (واتساب)</label>
+    <input type="tel" id="fPhone0" placeholder="مثال: 05xxxxxxxx">
+    <div class="hint">سجّلت في فعالية سابقة؟ أدخل نفس الرقم وسنعبّي بياناتك تلقائيًا.</div>
+    <div style="margin-top:18px;"><button id="phoneNextBtn" style="width:100%;">متابعة</button></div>
+  </div>
+
+  <div id="formCard" class="card" style="display:none;">
+    <div class="notice" id="returningNotice" style="display:none;">وجدنا تسجيلًا سابقًا لك — عبّينا بياناتك، عدّل أي شيء إن رغبت.</div>
+
     <label>اسمك (يُستخدم فقط من قِبل المنظّم، ولن يظهر لأحد)</label>
     <input type="text" id="fName" placeholder="مثال: سارة العتيبي">
 
-    <label>صف نفسك بسطر أو سطرين — سنستوحي منه اسمك المستعار</label>
+    <label>صف نفسك بسطر أو سطرين — سنستوحي منه اسمك المستعار لهذه الفعالية</label>
     <textarea id="fDesc" placeholder="مثال: أحب الهدوء، أعمل في التصميم، أستمع أكثر مما أتحدث..."></textarea>
 
     <label>ما هدفك من الحضور؟</label>
@@ -27,6 +37,11 @@
       <div class="choice" data-val="vent">فضفضة</div>
       <div class="choice" data-val="meet">تعارف</div>
       <div class="choice" data-val="listen">مستمع / أعطي نصائح</div>
+    </div>
+
+    <div id="subCatBlock" style="display:none;">
+      <label id="subCatLabel">نوع الفضفضة أو المشكلة</label>
+      <div class="choice-row" id="subCatRow" style="flex-direction:column;"></div>
     </div>
 
     <label>جنسك</label>
@@ -50,10 +65,9 @@
   </div>
 
   <div id="doneCard" class="card" style="display:none;text-align:center;">
-    <div class="eyebrow" style="justify-content:center;">تم التسجيل</div>
-    <h2>اسمك المستعار خلال الفعالية</h2>
-    <div style="font-family:'Aref Ruqaa',serif;font-size:2.2rem;color:var(--accent);margin:14px 0;" id="nickOut"></div>
-    <p class="hint" style="margin-top:18px;">بعد انتهاء الفعالية، افتح رابط الاختيار من نفس هذا الجهاز والمتصفح — سيتعرف عليك تلقائيًا بدون أي رمز.</p>
+    <div class="eyebrow" style="justify-content:center;">تم استلام طلبك</div>
+    <h2>خطوة أخيرة قبل التأكيد</h2>
+    <p>سيتواصل معك المنظّم عبر واتساب لتأكيد حضورك وإتمام الدفع. بعد التأكيد، افتح <a href="select.html">صفحتك الشخصية</a> من نفس هذا الجهاز لمتابعة الفعالية — ستجد فيها اسمك المستعار، ومن تجلس معه في كل جولة.</p>
   </div>
 
   <div class="footer-note">خصوصيتك محفوظة — لا يظهر اسمك الحقيقي لأي مشارك آخر.</div>
@@ -85,7 +99,11 @@ document.title = EVENT_NAME + ' — التسجيل';
   }
 })();
 
-let goal=null, gender=null, prefer=null;
+let goal=null, gender=null, prefer=null, subCategory=null;
+let currentPhone = '';
+let participantsRef; // يُضبط بعد تحديد الفعالية النشطة
+let CURRENT_EVENT_ID = null;
+
 function wireChoices(rowId, onPick){
   document.getElementById(rowId).querySelectorAll('.choice').forEach(el=>{
     el.addEventListener('click', ()=>{
@@ -95,9 +113,69 @@ function wireChoices(rowId, onPick){
     });
   });
 }
-wireChoices('goalRow', v=>goal=v);
+function selectChoice(rowId, val){
+  document.getElementById(rowId).querySelectorAll('.choice').forEach(c=>{
+    c.classList.toggle('active', c.dataset.val === val);
+  });
+}
+
+function renderSubCategories(list, label, preselect){
+  const row = document.getElementById('subCatRow');
+  document.getElementById('subCatLabel').textContent = label;
+  row.innerHTML = list.map(txt=>`<div class="choice ${txt===preselect?'active':''}" data-val="${txt}">${txt}</div>`).join('');
+  row.querySelectorAll('.choice').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      row.querySelectorAll('.choice').forEach(c=>c.classList.remove('active'));
+      el.classList.add('active');
+      subCategory = el.dataset.val;
+    });
+  });
+}
+
+wireChoices('goalRow', v=>{
+  goal = v;
+  subCategory = null;
+  const block = document.getElementById('subCatBlock');
+  if(v === 'vent'){
+    block.style.display = 'block';
+    renderSubCategories(VENT_CATEGORIES, 'نوع الفضفضة أو المشكلة');
+  }else if(v === 'listen'){
+    block.style.display = 'block';
+    renderSubCategories(LISTEN_CATEGORIES, 'تخصصك كمستمع');
+  }else{
+    block.style.display = 'none';
+  }
+});
 wireChoices('genderRow', v=>gender=v);
 wireChoices('preferRow', v=>prefer=v);
+
+document.getElementById('phoneNextBtn').addEventListener('click', async ()=>{
+  const phone = document.getElementById('fPhone0').value.trim();
+  if(!phone){ return; }
+  currentPhone = phone;
+  const btn = document.getElementById('phoneNextBtn');
+  btn.disabled = true; btn.textContent = 'جارٍ التحقق...';
+
+  try{
+    const key = phoneKey(phone);
+    const profDoc = key ? await profilesRef.doc(key).get() : null;
+    if(profDoc && profDoc.exists){
+      const p = profDoc.data();
+      document.getElementById('fName').value = p.name || '';
+      if(p.gender) selectChoice('genderRow', p.gender);
+      if(p.prefer) selectChoice('preferRow', p.prefer);
+      gender = p.gender || null;
+      prefer = p.prefer || null;
+      document.getElementById('returningNotice').style.display = 'block';
+    }
+  }catch(e){
+    console.error(e);
+  }
+
+  document.getElementById('phoneCard').style.display = 'none';
+  document.getElementById('formCard').style.display = 'block';
+  btn.disabled = false; btn.textContent = 'متابعة';
+});
 
 document.getElementById('submitBtn').addEventListener('click', async ()=>{
   const name = document.getElementById('fName').value.trim();
@@ -107,6 +185,11 @@ document.getElementById('submitBtn').addEventListener('click', async ()=>{
 
   if(!name || !desc || !goal || !gender || !prefer){
     errEl.textContent = 'الرجاء تعبئة جميع الحقول واختيار كل الخيارات قبل التسجيل.';
+    errEl.style.display='block';
+    return;
+  }
+  if((goal==='vent' || goal==='listen') && !subCategory){
+    errEl.textContent = 'الرجاء اختيار نوع الفضفضة أو تخصص الاستماع.';
     errEl.style.display='block';
     return;
   }
@@ -120,16 +203,21 @@ document.getElementById('submitBtn').addEventListener('click', async ()=>{
     const nickname = generateNickname(desc, used);
 
     const docRef = await participantsRef.add({
-      name, description: desc, goal, gender, prefer,
-      nickname,
+      name, phone: currentPhone, goal, subCategory: subCategory || null, gender, prefer,
+      nickname, status: 'pending',
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
 
+    const key = phoneKey(currentPhone);
+    if(key){
+      await profilesRef.doc(key).set({name, phone: currentPhone, gender, prefer, updatedAt: firebase.firestore.FieldValue.serverTimestamp()}, {merge:true});
+    }
+
     localStorage.setItem('majlis_pid', docRef.id);
+    localStorage.setItem('majlis_eid', CURRENT_EVENT_ID);
     localStorage.setItem('majlis_nick', nickname);
 
     document.getElementById('formCard').style.display='none';
-    document.getElementById('nickOut').textContent = nickname;
     document.getElementById('doneCard').style.display='block';
   }catch(e){
     console.error(e);
@@ -138,6 +226,11 @@ document.getElementById('submitBtn').addEventListener('click', async ()=>{
     btn.disabled=false; btn.textContent='تسجيل';
   }
 });
+
+(async function boot(){
+  CURRENT_EVENT_ID = await getOrCreateActiveEventId();
+  participantsRef = eventRefs(CURRENT_EVENT_ID).participantsRef;
+})();
 </script>
 </body>
 </html>

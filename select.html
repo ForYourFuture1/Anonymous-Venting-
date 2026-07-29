@@ -3,33 +3,51 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>اختيار من بعد الفعالية</title>
+<title>صفحتي الشخصية</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="wrap">
-  <div class="eyebrow">بعد الفعالية</div>
+  <div class="eyebrow" id="eyebrowTop">صفحتك الشخصية</div>
   <h1 id="eventTitle">مجلس</h1>
-  <p>افتح هذه الصفحة من نفس الجهاز والمتصفح اللي سجّلت فيه — سنتعرف عليك تلقائيًا.</p>
-
-  <div id="loadingCard" class="card">
-    <p class="hint">جارٍ التحقق...</p>
-  </div>
 
   <div id="notFoundCard" class="card" style="display:none;">
     <p>لم نتعرف عليك من هذا الجهاز. تأكد أنك تفتح هذه الصفحة من نفس المتصفح الذي سجّلت فيه بياناتك، أو راجع المنظّم.</p>
   </div>
 
-  <div id="closedCard" class="card" style="display:none;">
-    <p>باب الاختيار لم يُفتح بعد من قِبل المنظّم. حاول لاحقًا.</p>
+  <div id="pendingCard" class="card" style="display:none;text-align:center;">
+    <h2>تم استلام تسجيلك ✓</h2>
+    <p>سيتواصل معك المنظّم عبر واتساب لتأكيد حضورك وإتمام الدفع. بعد التأكيد مباشرة، ستظهر هنا بياناتك — لا داعي لتسجيل الدخول أو عمل أي شيء، فقط أعد فتح هذه الصفحة من نفس جهازك.</p>
+  </div>
+
+  <div id="sessionCard" class="card" style="display:none;">
+    <div style="text-align:center;">
+      <p class="hint">اسمك المستعار خلال الفعالية</p>
+      <div style="font-family:'Aref Ruqaa',serif;font-size:2.2rem;color:var(--accent);margin:6px 0 18px;" id="myNick"></div>
+    </div>
+
+    <div id="noScheduleNote" style="display:none;">
+      <p class="hint" style="text-align:center;">بانتظار بدء الفعالية وتوزيع الجولات من قِبل المنظّم...</p>
+    </div>
+
+    <div id="roundInfo" style="display:none;">
+      <h3 style="text-align:center;">الجولة <span id="roundNum">١</span> من ٣</h3>
+      <div class="timer" id="clock">20:00</div>
+      <p style="text-align:center;" id="partnerLine"></p>
+    </div>
   </div>
 
   <div id="pickCard" class="card" style="display:none;">
-    <h2>مرحبًا، <span id="myNick"></span></h2>
+    <h2>بعد انتهاء الجولات</h2>
     <p>هؤلاء من جلست معهم خلال الجولات. اختر من رغبت بالتواصل معه (يمكنك اختيار أكثر من شخص):</p>
     <div class="pill-list" id="pillList"></div>
     <button id="saveBtn" style="width:100%;margin-top:10px;">حفظ اختياري</button>
     <div class="hint" id="saveStatus"></div>
+  </div>
+
+  <div id="resultsCard" class="card" style="display:none;text-align:center;">
+    <h2>النتيجة</h2>
+    <div id="resultsBody"></div>
   </div>
 
   <div class="footer-note">اختياراتك لا تُعرض لأي مشارك آخر — يطّلع عليها المنظّم فقط.</div>
@@ -41,81 +59,120 @@
 <script src="app.js"></script>
 <script>
 document.getElementById('eventTitle').textContent = EVENT_NAME;
-document.title = EVENT_NAME + ' — الاختيار';
+document.title = EVENT_NAME + ' — صفحتي';
 
-let me = null;
-let met = []; // participants met across all rounds
+const pid = localStorage.getItem('majlis_pid');
+let participant = null;
+let state = {};
+let scheduleRounds = [];
+let byId = {};
+let allSelections = [];
 let selected = new Set();
+let pillsBuilt = false;
 
 function showOnly(id){
-  ['loadingCard','notFoundCard','closedCard','pickCard'].forEach(x=>{
-    document.getElementById(x).style.display = (x===id) ? 'block':'none';
+  ['notFoundCard','pendingCard','sessionCard','pickCard','resultsCard'].forEach(x=>{
+    document.getElementById(x).style.display = (x===id) ? 'block' : 'none';
   });
 }
 
-(async function init(){
-  const pid = localStorage.getItem('majlis_pid');
-  if(!pid){ showOnly('notFoundCard'); return; }
+function render(){
+  if(!pid || !participant){ showOnly('notFoundCard'); return; }
 
-  const stDoc = await stateRef.get();
-  const st = stDoc.exists ? stDoc.data() : {};
-  if(!st.selectionOpen){ showOnly('closedCard'); return; }
+  if(participant.status !== 'paid'){ showOnly('pendingCard'); return; }
 
-  const meDoc = await participantsRef.doc(pid).get();
-  if(!meDoc.exists){ showOnly('notFoundCard'); return; }
-  me = {id: meDoc.id, ...meDoc.data()};
+  if(state.resultsOpen){ renderResults(); showOnly('resultsCard'); return; }
 
-  const schedDoc = await db.collection('meta').doc('schedule').get();
-  const allP = await participantsRef.get();
-  const byId = {};
-  allP.docs.forEach(d=>byId[d.id] = {id:d.id, ...d.data()});
+  if(state.selectionOpen){ renderPicks(); showOnly('pickCard'); return; }
 
+  // الجلسة العادية: الاسم + الجولة الحالية
+  showOnly('sessionCard');
+  document.getElementById('myNick').textContent = participant.nickname;
+
+  if(!scheduleRounds.length){
+    document.getElementById('noScheduleNote').style.display = 'block';
+    document.getElementById('roundInfo').style.display = 'none';
+    return;
+  }
+  document.getElementById('noScheduleNote').style.display = 'none';
+  document.getElementById('roundInfo').style.display = 'block';
+
+  const roundIdx = Math.max(0, (state.round||1) - 1);
+  document.getElementById('roundNum').textContent = ['','١','٢','٣'][state.round||1] || (state.round||1);
+
+  const mateIds = groupmatesFor(scheduleRounds, roundIdx, pid);
+  const mateNames = mateIds.map(id => byId[id] ? byId[id].nickname : '؟');
+  const partnerLine = document.getElementById('partnerLine');
+  if(mateNames.length===0){
+    partnerLine.textContent = 'لا يوجد شريك محدد لك في هذه الجولة.';
+  }else{
+    partnerLine.textContent = 'تجلس مع: ' + mateNames.join(' و ');
+  }
+}
+
+function renderPicks(){
+  if(pillsBuilt) return; // لا تعيد البناء إذا كانت القوائم موجودة أصلًا (حفاظًا على اختيار المستخدم أثناء التفاعل)
+  if(Object.keys(byId).length===0) return; // انتظر تحميل أسماء المشاركين أولًا
+  const roundsCount = 3;
   const metIds = new Set();
-  if(schedDoc.exists){
-    scheduleFromFirestore(schedDoc.data().rounds).forEach(round=>{
-      round.forEach(group=>{
-        if(group.includes(me.id)){
-          group.forEach(id=>{ if(id!==me.id) metIds.add(id); });
-        }
-      });
-    });
+  for(let r=0;r<roundsCount;r++){
+    groupmatesFor(scheduleRounds, r, pid).forEach(id=>metIds.add(id));
   }
-  met = Array.from(metIds).map(id=>byId[id]).filter(Boolean);
+  const met = Array.from(metIds).map(id=>byId[id]).filter(Boolean);
 
-  // استرجاع اختيار سابق إن وجد
-  const prevSel = await selectionsRef.where('pid','==',pid).limit(1).get();
-  if(!prevSel.empty){
-    (prevSel.docs[0].data().picks||[]).forEach(n=>selected.add(n));
-  }
+  const mySel = allSelections.find(s=>s.pid===pid);
+  if(mySel){ (mySel.picks||[]).forEach(n=>selected.add(n)); }
 
-  document.getElementById('myNick').textContent = me.nickname;
-  renderPills();
-  showOnly('pickCard');
-})();
-
-function renderPills(){
   const el = document.getElementById('pillList');
   if(met.length===0){
     el.innerHTML = '<p class="hint">لم تُسجَّل أي جلسات لك بعد.</p>';
-    return;
-  }
-  el.innerHTML = met.map(p=>`
-    <div class="pill ${selected.has(p.nickname)?'active':''}" data-nick="${p.nickname}">${p.nickname}</div>
-  `).join('');
-  el.querySelectorAll('.pill').forEach(pill=>{
-    pill.addEventListener('click', ()=>{
-      const nick = pill.dataset.nick;
-      if(selected.has(nick)) selected.delete(nick); else selected.add(nick);
-      pill.classList.toggle('active');
+  }else{
+    el.innerHTML = met.map(p=>`
+      <div class="pill ${selected.has(p.nickname)?'active':''}" data-nick="${p.nickname}">${p.nickname}</div>
+    `).join('');
+    el.querySelectorAll('.pill').forEach(pill=>{
+      pill.addEventListener('click', ()=>{
+        const nick = pill.dataset.nick;
+        if(selected.has(nick)) selected.delete(nick); else selected.add(nick);
+        pill.classList.toggle('active');
+      });
     });
+  }
+  pillsBuilt = true;
+}
+
+function renderResults(){
+  const mySel = allSelections.find(s=>s.pid===pid);
+  const myPicks = mySel ? (mySel.picks||[]) : [];
+  const mutual = myPicks.filter(nick=>{
+    const other = Object.values(byId).find(p=>p.nickname===nick);
+    if(!other) return false;
+    const otherSel = allSelections.find(s=>s.pid===other.id);
+    return otherSel && (otherSel.picks||[]).includes(participant.nickname);
   });
+
+  const body = document.getElementById('resultsBody');
+  if(mutual.length>0){
+    body.innerHTML = `
+      <p>اختار كل منكما الآخر ✓</p>
+      <div style="font-family:'Aref Ruqaa',serif;font-size:1.8rem;color:var(--accent);margin:10px 0;">
+        ${mutual.join(' و ')}
+      </div>
+      <p class="hint">راجع المنظّم للتنسيق للتواصل بعد الفعالية.</p>
+    `;
+  }else{
+    body.innerHTML = `
+      <p>لم يتم اختيارك من أحد هذه المرة.</p>
+      <p class="hint">هذا لا يعني شيئًا سلبيًا — هويتك بقيت سرية بالكامل طوال الفعالية.</p>
+    `;
+  }
 }
 
 document.getElementById('saveBtn').addEventListener('click', async ()=>{
   const status = document.getElementById('saveStatus');
   status.textContent = 'جارٍ الحفظ...';
-  const existing = await selectionsRef.where('pid','==',me.id).limit(1).get();
-  const payload = {pid: me.id, nickname: me.nickname, picks: Array.from(selected), updatedAt: firebase.firestore.FieldValue.serverTimestamp()};
+  const existing = await selectionsRef.where('pid','==',pid).limit(1).get();
+  const payload = {pid, nickname: participant.nickname, picks: Array.from(selected), updatedAt: firebase.firestore.FieldValue.serverTimestamp()};
   if(existing.empty){
     await selectionsRef.add(payload);
   }else{
@@ -123,6 +180,56 @@ document.getElementById('saveBtn').addEventListener('click', async ()=>{
   }
   status.textContent = 'تم الحفظ ✓';
 });
+
+/* ===== مؤقت حي مستقل عن إعادة الرسم الكامل ===== */
+setInterval(()=>{
+  if(!participant || participant.status!=='paid' || state.selectionOpen || state.resultsOpen) return;
+  const clockEl = document.getElementById('clock');
+  if(!clockEl || document.getElementById('sessionCard').style.display==='none') return;
+  if(state.status==='running' && state.endsAt){
+    clockEl.textContent = fmtClock((state.endsAt - Date.now())/1000);
+  }else if(state.status==='paused'){
+    clockEl.textContent = fmtClock((state.remaining||0)/1000);
+  }else{
+    clockEl.textContent = '20:00';
+  }
+}, 1000);
+
+/* ===== الاستماع الحي لكل مصادر البيانات ===== */
+const eid = localStorage.getItem('majlis_eid');
+let participantsRef, selectionsRef, stateRef, scheduleDocRef;
+
+if(pid && eid){
+  const refs = eventRefs(eid);
+  participantsRef = refs.participantsRef;
+  selectionsRef = refs.selectionsRef;
+  stateRef = refs.stateRef;
+  scheduleDocRef = refs.scheduleDocRef;
+
+  participantsRef.doc(pid).onSnapshot(doc=>{
+    participant = doc.exists ? {id:doc.id, ...doc.data()} : null;
+    render();
+  });
+  stateRef.onSnapshot(doc=>{
+    state = doc.exists ? doc.data() : {};
+    render();
+  });
+  scheduleDocRef.onSnapshot(doc=>{
+    scheduleRounds = doc.exists ? scheduleFromFirestore(doc.data().rounds) : [];
+    render();
+  });
+  selectionsRef.onSnapshot(snap=>{
+    allSelections = snap.docs.map(d=>d.data());
+    render();
+  });
+  participantsRef.onSnapshot(snap=>{
+    byId = {};
+    snap.docs.forEach(d=>byId[d.id]={id:d.id, ...d.data()});
+    render();
+  });
+}else{
+  showOnly('notFoundCard');
+}
 </script>
 </body>
 </html>

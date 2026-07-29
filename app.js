@@ -2,10 +2,51 @@
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-/* مسار وثيقة حالة الفعالية الحالية (جولة واحدة فعّالة في كل مرة) */
-const stateRef = db.collection('meta').doc('event_state');
-const participantsRef = db.collection('participants');
-const selectionsRef = db.collection('selections');
+/* ============ هيكلة الفعاليات المتعددة ============
+   كل فعالية لها معرّف خاص، وكل بياناتها (مسجّلون/جولات/حالة/اختيارات)
+   محفوظة تحت events/{eventId}/... منفصلة تمامًا عن أي فعالية أخرى.
+   meta/active_event يحدد أي فعالية تستقبل التسجيلات الجديدة الآن.
+   profiles/{phone} يحفظ بيانات المشارك الدائمة (اسم/جنس/تفضيل) عبر كل الفعاليات،
+   حتى ما يحتاج يعيد تعبئتها كل مرة — بس يدخل جواله. */
+const eventsRef = db.collection('events');
+const activeEventPointerRef = db.collection('meta').doc('active_event');
+const profilesRef = db.collection('profiles');
+
+function eventRefs(eventId){
+  const evDoc = eventsRef.doc(eventId);
+  return {
+    eventDoc: evDoc,
+    participantsRef: evDoc.collection('participants'),
+    selectionsRef: evDoc.collection('selections'),
+    stateRef: evDoc.collection('meta').doc('event_state'),
+    scheduleDocRef: evDoc.collection('meta').doc('schedule')
+  };
+}
+
+/* يرجع معرّف الفعالية النشطة حاليًا، وينشئ فعالية أولى تلقائيًا إن لم توجد */
+async function getOrCreateActiveEventId(){
+  const doc = await activeEventPointerRef.get();
+  if(doc.exists && doc.data().eventId) return doc.data().eventId;
+  const newEv = await eventsRef.add({name:'الفعالية الأولى', createdAt: firebase.firestore.FieldValue.serverTimestamp()});
+  await activeEventPointerRef.set({eventId:newEv.id});
+  return newEv.id;
+}
+
+/* ينشئ فعالية جديدة فارغة ويجعلها النشطة (تستقبل التسجيلات الجديدة)،
+   دون حذف أي بيانات من الفعاليات السابقة */
+async function createNewEvent(name){
+  const newEv = await eventsRef.add({
+    name: name && name.trim() ? name.trim() : ('فعالية ' + new Date().toLocaleDateString('ar')),
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+  await activeEventPointerRef.set({eventId:newEv.id});
+  return newEv.id;
+}
+
+/* ============ ملف المشارك الدائم (لتسريع التسجيل المتكرر) ============ */
+function phoneKey(phone){
+  return (phone||'').replace(/[^0-9]/g,'');
+}
 
 /* ============ مولّد الأسماء الوهمية ============
    يختار كلمة واحدة ذات معنى (أثر، فلك، شمس...) بدل اسم مركّب،
@@ -134,3 +175,27 @@ function fmtClock(totalSeconds){
 function goalLabel(g){
   return {vent:'فضفضة', meet:'تعارف', listen:'مستمع/نصائح'}[g] || g;
 }
+
+/* ============ خيارات نوع الفضفضة / تخصص المستمع ============ */
+const VENT_CATEGORIES = [
+  'فضفضة عن علاقة عاطفية أو صداقة',
+  'فضفضة عن العمل',
+  'فضفضة عن مشاكل الذات',
+  'فضفضة أخرى'
+];
+const LISTEN_CATEGORIES = [
+  'مستمع لمشاكل العلاقات',
+  'مستمع لمشاكل العمل',
+  'مستمع لمشاكل الذات',
+  'مستمع لأي مشكلة بهدف الاستماع والتخفيف'
+];
+
+/* يرجع أعضاء المجموعة (بدون الشخص نفسه) لجولة معيّنة من جدول محوّل بالفعل (plain rounds) */
+function groupmatesFor(rounds, roundIndex, myId){
+  const round = (rounds && rounds[roundIndex]) || [];
+  for(const group of round){
+    if(group.includes(myId)) return group.filter(id=>id!==myId);
+  }
+  return [];
+}
+

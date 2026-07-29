@@ -22,6 +22,21 @@
     <div class="eyebrow">لوحة المنظم</div>
     <h1 id="eventTitle">مجلس</h1>
 
+    <!-- إدارة الفعاليات -->
+    <div class="card">
+      <div class="row between">
+        <h2 style="margin:0;">الفعالية المعروضة</h2>
+        <span class="badge" id="activeBadge"></span>
+      </div>
+      <label>عرض بيانات فعالية</label>
+      <select id="eventSelect"></select>
+
+      <label style="margin-top:20px;">بدء فعالية جديدة (بيانات القديمة تبقى محفوظة كما هي)</label>
+      <input type="text" id="newEventName" placeholder="اسم الفعالية الجديدة (اختياري)">
+      <div style="margin-top:12px;"><button id="newEventBtn">➕ إنشاء وتفعيل فعالية جديدة</button></div>
+      <div class="hint" id="eventHint"></div>
+    </div>
+
     <!-- المسجّلون -->
     <div class="card">
       <div class="row between">
@@ -29,7 +44,7 @@
         <span class="badge" id="countBadge">0</span>
       </div>
       <table class="table" id="regTable" style="margin-top:14px;">
-        <thead><tr><th>الاسم</th><th>الاسم المستعار</th><th>الهدف</th><th>الجنس</th><th>يفضّل</th></tr></thead>
+        <thead><tr><th>الاسم</th><th>الجوال</th><th>الاسم المستعار</th><th>الهدف</th><th>التفاصيل</th><th>الجنس</th><th>يفضّل</th><th>الحالة</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -37,7 +52,7 @@
     <!-- التوزيع -->
     <div class="card">
       <h2>توزيع الجولات</h2>
-      <p>يوزّع النظام المسجلين تلقائيًا على ثلاث جولات، كل جولة ٢٠ دقيقة، مع مراعاة تفضيلات كل شخص وعدم تكرار نفس الشريك.</p>
+      <p>يوزّع النظام <b>المسجلين المؤكَّد دفعهم فقط</b> تلقائيًا على ثلاث جولات، كل جولة ٢٠ دقيقة، مع مراعاة تفضيلات كل شخص وعدم تكرار نفس الشريك.</p>
       <button id="genBtn">توليد التوزيع (٣ جولات)</button>
       <span class="hint" id="genHint"></span>
     </div>
@@ -64,7 +79,7 @@
     <!-- فتح الاختيار -->
     <div class="card" id="openSelCard" style="display:none;">
       <h2>بعد انتهاء الجولات</h2>
-      <p>افتح باب الاختيار لكي يختار كل مشارك من جلس معهم من يرغب بالتواصل معه بعد الفعالية. شارك رابط صفحة الاختيار مع الحضور.</p>
+      <p>افتح باب الاختيار لكي يختار كل مشارك من جلس معهم من يرغب بالتواصل معه بعد الفعالية. كل مشارك يفتح صفحته الشخصية (نفس الرابط اللي أرسلته له) وتظهر له خيارات الاختيار تلقائيًا.</p>
       <button id="openSelBtn">فتح باب الاختيار</button>
       <span class="hint" id="openSelStatus"></span>
     </div>
@@ -72,8 +87,13 @@
     <!-- نتائج المطابقة -->
     <div class="card" id="matchesCard" style="display:none;">
       <h2>الاختيارات والمطابقات</h2>
-      <p>الأسماء المظللة بالأمان <span class="badge" style="border-color:var(--accent);color:var(--accent);">تطابق متبادل</span> يعني أن الطرفين اختار كل منهما الآخر.</p>
+      <p>الأسماء المظللة <span class="badge" style="border-color:var(--accent);color:var(--accent);">تطابق متبادل</span> يعني أن الطرفين اختار كل منهما الآخر.</p>
       <div id="matchesList"></div>
+      <div style="margin-top:18px;border-top:1px solid var(--line);padding-top:18px;">
+        <p>عند الجاهزية، اكشف النتائج للمشاركين — كل شخص سيرى في صفحته الشخصية إن كان له تطابق متبادل أو لا (بدون كشف هوية أي طرف ثالث).</p>
+        <button id="openResultsBtn">كشف النتائج للمشاركين</button>
+        <span class="hint" id="openResultsStatus"></span>
+      </div>
     </div>
 
   </div>
@@ -91,56 +111,147 @@ document.getElementById('pwBtn').addEventListener('click', ()=>{
   if(document.getElementById('pw').value === ADMIN_PASSWORD){
     document.getElementById('gate').style.display='none';
     document.getElementById('panel').style.display='block';
-    boot();
+    initEvents();
   }else{
     document.getElementById('pwErr').style.display='block';
   }
 });
 
-let participants = []; // {id,name,nickname,goal,gender,prefer}
+let participants = []; // {id,name,nickname,goal,gender,prefer,phone,status}
 let byId = {};
 let schedule = null; // {rounds: [[ [id,id],... ], ...]} — محوّل من صيغة Firestore الآمنة عند القراءة
-let scheduleDocRef = db.collection('meta').doc('schedule');
 let timerInterval = null;
+let unsubs = [];
+let ACTIVE_EVENT_ID = null;
+let VIEW_EVENT_ID = null;
+let participantsRef, selectionsRef, stateRef, scheduleDocRef;
+
+/* ===== إدارة الفعاليات ===== */
+async function initEvents(){
+  ACTIVE_EVENT_ID = await getOrCreateActiveEventId();
+  await refreshEventsList();
+  document.getElementById('eventSelect').value = ACTIVE_EVENT_ID;
+  switchToEvent(ACTIVE_EVENT_ID);
+}
+
+async function refreshEventsList(){
+  const snap = await eventsRef.orderBy('createdAt','desc').get();
+  const sel = document.getElementById('eventSelect');
+  sel.innerHTML = snap.docs.map(d=>{
+    const name = (d.data().name || d.id);
+    const tag = d.id === ACTIVE_EVENT_ID ? ' (نشطة الآن)' : '';
+    return `<option value="${d.id}">${escapeHtml(name)}${tag}</option>`;
+  }).join('');
+}
+
+document.getElementById('eventSelect').addEventListener('change', (e)=>{
+  switchToEvent(e.target.value);
+});
+
+document.getElementById('newEventBtn').addEventListener('click', async ()=>{
+  const hint = document.getElementById('eventHint');
+  const name = document.getElementById('newEventName').value.trim();
+  hint.textContent = 'جارٍ الإنشاء...';
+  const id = await createNewEvent(name);
+  ACTIVE_EVENT_ID = id;
+  await refreshEventsList();
+  document.getElementById('eventSelect').value = id;
+  document.getElementById('newEventName').value = '';
+  switchToEvent(id);
+  hint.textContent = 'تم إنشاء الفعالية وتفعيلها — التسجيلات الجديدة تذهب لها الآن ✓';
+});
+
+function switchToEvent(eventId){
+  unsubs.forEach(u=>u());
+  unsubs = [];
+  clearInterval(timerInterval);
+
+  VIEW_EVENT_ID = eventId;
+  participants = []; byId = {}; schedule = null;
+  document.getElementById('roundCard').style.display = 'none';
+  document.getElementById('openSelCard').style.display = 'none';
+  document.getElementById('matchesCard').style.display = 'none';
+  document.getElementById('genHint').textContent = '';
+  document.getElementById('openSelStatus').textContent = '';
+  document.getElementById('openResultsStatus').textContent = '';
+
+  const refs = eventRefs(eventId);
+  participantsRef = refs.participantsRef;
+  selectionsRef = refs.selectionsRef;
+  stateRef = refs.stateRef;
+  scheduleDocRef = refs.scheduleDocRef;
+
+  document.getElementById('activeBadge').textContent = (eventId===ACTIVE_EVENT_ID) ? 'نشطة — تستقبل تسجيلات جديدة' : 'أرشيف (للعرض فقط)';
+
+  boot();
+}
 
 function boot(){
-  participantsRef.orderBy('createdAt').onSnapshot(snap=>{
+  unsubs.push(participantsRef.orderBy('createdAt').onSnapshot(snap=>{
     participants = snap.docs.map(d=>({id:d.id, ...d.data()}));
     byId = Object.fromEntries(participants.map(p=>[p.id,p]));
     renderRegistrants();
     renderGroups(); // refresh nicknames if participants changed
-  });
+  }));
 
-  scheduleDocRef.onSnapshot(doc=>{
+  unsubs.push(scheduleDocRef.onSnapshot(doc=>{
     schedule = doc.exists ? {rounds: scheduleFromFirestore(doc.data().rounds)} : null;
     document.getElementById('roundCard').style.display = schedule ? 'block':'none';
     document.getElementById('openSelCard').style.display = schedule ? 'block':'none';
     if(schedule) renderGroups();
-  });
+  }));
 
-  stateRef.onSnapshot(doc=>{
+  unsubs.push(stateRef.onSnapshot(doc=>{
     const st = doc.exists ? doc.data() : {round:0,status:'idle'};
     renderTimerState(st);
-    if(st.selectionOpen){
+    if(st.selectionOpen || st.resultsOpen){
       document.getElementById('matchesCard').style.display='block';
       renderMatches();
     }
-  });
+    document.getElementById('openResultsStatus').textContent = st.resultsOpen ? 'النتائج مكشوفة للمشاركين الآن ✓' : '';
+  }));
 
-  selectionsRef.onSnapshot(()=>{ renderMatches(); });
+  unsubs.push(selectionsRef.onSnapshot(()=>{ renderMatches(); }));
 }
 
 function renderRegistrants(){
   document.getElementById('countBadge').textContent = participants.length;
   const tbody = document.querySelector('#regTable tbody');
-  tbody.innerHTML = participants.map(p=>`
+  tbody.innerHTML = participants.map(p=>{
+    const wa = toWhatsappLink(p.phone);
+    const paid = p.status === 'paid';
+    return `
     <tr>
       <td>${escapeHtml(p.name)}</td>
+      <td>${wa ? `<a href="${wa}" target="_blank" style="color:var(--accent-2);">${escapeHtml(p.phone||'')}</a>` : escapeHtml(p.phone||'')}</td>
       <td>${escapeHtml(p.nickname)}</td>
       <td>${goalLabel(p.goal)}</td>
+      <td style="max-width:220px;white-space:normal;">${escapeHtml(p.subCategory||'')}</td>
       <td>${p.gender}</td>
       <td>${p.prefer}</td>
-    </tr>`).join('');
+      <td>
+        <span class="badge" style="${paid?'border-color:var(--accent);color:var(--accent);':'border-color:var(--danger);color:var(--danger);'}">${paid?'مدفوع':'بانتظار الدفع'}</span>
+        <button class="ghost" style="padding:6px 10px;font-size:.8rem;margin-top:6px;" data-toggle="${p.id}">${paid?'إلغاء التأكيد':'تأكيد الدفع'}</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  tbody.querySelectorAll('[data-toggle]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const id = btn.dataset.toggle;
+      const p = byId[id];
+      const newStatus = (p.status==='paid') ? 'pending' : 'paid';
+      await participantsRef.doc(id).set({status:newStatus}, {merge:true});
+    });
+  });
+}
+
+function toWhatsappLink(phone){
+  if(!phone) return null;
+  let digits = phone.replace(/[^0-9]/g,'');
+  if(digits.startsWith('0')) digits = '966' + digits.slice(1);
+  if(!digits) return null;
+  return `https://wa.me/${digits}`;
 }
 
 function escapeHtml(s){
@@ -149,17 +260,18 @@ function escapeHtml(s){
 
 document.getElementById('genBtn').addEventListener('click', async ()=>{
   const hint = document.getElementById('genHint');
-  if(participants.length < 2){
-    hint.textContent = 'تحتاج مسجّلَين اثنين على الأقل.';
+  const paidParticipants = participants.filter(p=>p.status==='paid');
+  if(paidParticipants.length < 2){
+    hint.textContent = 'تحتاج مسجّلَين مؤكَّدَي الدفع اثنين على الأقل.';
     return;
   }
   hint.textContent = 'جارٍ التوليد...';
   try{
-    const simple = participants.map(p=>({id:p.id, gender:p.gender, prefer:p.prefer}));
+    const simple = paidParticipants.map(p=>({id:p.id, gender:p.gender, prefer:p.prefer}));
     const rounds = generateSchedule(simple, 3);
     await scheduleDocRef.set({rounds: scheduleToFirestore(rounds), generatedAt: firebase.firestore.FieldValue.serverTimestamp()});
-    await stateRef.set({round:1, status:'idle', selectionOpen:false}, {merge:true});
-    hint.textContent = 'تم التوليد ✓';
+    await stateRef.set({round:1, status:'idle', selectionOpen:false, resultsOpen:false}, {merge:true});
+    hint.textContent = `تم التوليد لِـ ${paidParticipants.length} مشارك مؤكَّد ✓`;
   }catch(e){
     console.error(e);
     hint.textContent = 'تعذّر التوليد: ' + (e.message || 'خطأ غير متوقع');
@@ -213,6 +325,9 @@ document.getElementById('nextBtn').addEventListener('click', async ()=>{
 document.getElementById('openSelBtn').addEventListener('click', async ()=>{
   await stateRef.set({selectionOpen:true}, {merge:true});
   document.getElementById('openSelStatus').textContent = 'باب الاختيار مفتوح الآن ✓';
+});
+document.getElementById('openResultsBtn').addEventListener('click', async ()=>{
+  await stateRef.set({resultsOpen:true}, {merge:true});
 });
 
 function renderTimerState(st){
