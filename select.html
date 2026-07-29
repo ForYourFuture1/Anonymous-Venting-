@@ -39,7 +39,7 @@
 
   <div id="pickCard" class="card" style="display:none;">
     <h2>بعد انتهاء الجولات</h2>
-    <p>هؤلاء من جلست معهم خلال الجولات. اختر من رغبت بالتواصل معه (يمكنك اختيار أكثر من شخص):</p>
+    <p>هؤلاء من جلست معهم خلال الجولات. اختر من تحب أن تكمل حديثك معه بعد الفعالية (يمكنك اختيار أكثر من شخص). إن اختاركما بعضكما، ستكون لكما جولة إضافية تكشفون فيها هويتكما وتكملون حديثكم.</p>
     <div class="pill-list" id="pillList"></div>
     <button id="saveBtn" style="width:100%;margin-top:10px;">حفظ اختياري</button>
     <div class="hint" id="saveStatus"></div>
@@ -61,7 +61,16 @@
 document.getElementById('eventTitle').textContent = EVENT_NAME;
 document.title = EVENT_NAME + ' — صفحتي';
 
-const pid = localStorage.getItem('majlis_pid');
+/* يدعم فتح الصفحة عبر رابط مباشر (?eid=...&pid=...) من المنظّم في حال فقد المشارك جهازه الأصلي،
+   ويحفظه محليًا حتى يعمل تلقائيًا في زياراته القادمة من نفس الجهاز */
+const urlParams = new URLSearchParams(location.search);
+const urlPid = urlParams.get('pid');
+const urlEid = urlParams.get('eid');
+if(urlPid && urlEid){
+  localStorage.setItem('majlis_pid', urlPid);
+  localStorage.setItem('majlis_eid', urlEid);
+}
+const pid = urlPid || localStorage.getItem('majlis_pid');
 let participant = null;
 let state = {};
 let scheduleRounds = [];
@@ -154,11 +163,11 @@ function renderResults(){
   const body = document.getElementById('resultsBody');
   if(mutual.length>0){
     body.innerHTML = `
-      <p>اختار كل منكما الآخر ✓</p>
+      <p>اختار كل منكما الآخر لإكمال الحديث ✓</p>
       <div style="font-family:'Aref Ruqaa',serif;font-size:1.8rem;color:var(--accent);margin:10px 0;">
         ${mutual.join(' و ')}
       </div>
-      <p class="hint">راجع المنظّم للتنسيق للتواصل بعد الفعالية.</p>
+      <p class="hint">ستكون لكما جولة إضافية بعد الفعالية تكشفون فيها هويتكما وتكملون حديثكم — راجع المنظّم للتنسيق.</p>
     `;
   }else{
     body.innerHTML = `

@@ -44,7 +44,7 @@
         <span class="badge" id="countBadge">0</span>
       </div>
       <table class="table" id="regTable" style="margin-top:14px;">
-        <thead><tr><th>الاسم</th><th>الجوال</th><th>الاسم المستعار</th><th>الهدف</th><th>التفاصيل</th><th>الجنس</th><th>يفضّل</th><th>الحالة</th></tr></thead>
+        <thead><tr><th>الاسم</th><th>الجوال</th><th>الاسم المستعار</th><th>الهدف</th><th>التفاصيل</th><th>الجنس</th><th>يفضّل</th><th>الحالة</th><th>الرابط</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -79,7 +79,7 @@
     <!-- فتح الاختيار -->
     <div class="card" id="openSelCard" style="display:none;">
       <h2>بعد انتهاء الجولات</h2>
-      <p>افتح باب الاختيار لكي يختار كل مشارك من جلس معهم من يرغب بالتواصل معه بعد الفعالية. كل مشارك يفتح صفحته الشخصية (نفس الرابط اللي أرسلته له) وتظهر له خيارات الاختيار تلقائيًا.</p>
+      <p>افتح باب الاختيار لكي يختار كل مشارك من جلس معهم من يرغب أن يكمل حديثه معه بعد الفعالية. كل مشارك يفتح صفحته الشخصية وتظهر له خيارات الاختيار تلقائيًا.</p>
       <button id="openSelBtn">فتح باب الاختيار</button>
       <span class="hint" id="openSelStatus"></span>
     </div>
@@ -90,7 +90,7 @@
       <p>الأسماء المظللة <span class="badge" style="border-color:var(--accent);color:var(--accent);">تطابق متبادل</span> يعني أن الطرفين اختار كل منهما الآخر.</p>
       <div id="matchesList"></div>
       <div style="margin-top:18px;border-top:1px solid var(--line);padding-top:18px;">
-        <p>عند الجاهزية، اكشف النتائج للمشاركين — كل شخص سيرى في صفحته الشخصية إن كان له تطابق متبادل أو لا (بدون كشف هوية أي طرف ثالث).</p>
+        <p>عند الجاهزية، اكشف النتائج للمشاركين — كل شخص سيرى في صفحته الشخصية إن كان له تطابق متبادل أو لا (بدون كشف هوية أي طرف ثالث). عند وجود تطابق، جهّز لهم جولة إضافية بعد الفعالية يكشفون فيها هويتهم ويكملون حديثهم.</p>
         <button id="openResultsBtn">كشف النتائج للمشاركين</button>
         <span class="hint" id="openResultsStatus"></span>
       </div>
@@ -233,8 +233,24 @@ function renderRegistrants(){
         <span class="badge" style="${paid?'border-color:var(--accent);color:var(--accent);':'border-color:var(--danger);color:var(--danger);'}">${paid?'مدفوع':'بانتظار الدفع'}</span>
         <button class="ghost" style="padding:6px 10px;font-size:.8rem;margin-top:6px;" data-toggle="${p.id}">${paid?'إلغاء التأكيد':'تأكيد الدفع'}</button>
       </td>
+      <td><button class="secondary" style="padding:6px 10px;font-size:.8rem;" data-copylink="${p.id}">نسخ رابط صفحته</button></td>
     </tr>`;
   }).join('');
+
+  tbody.querySelectorAll('[data-copylink]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const id = btn.dataset.copylink;
+      const link = `${location.origin}${location.pathname.replace('admin.html','select.html')}?eid=${VIEW_EVENT_ID}&pid=${id}`;
+      try{
+        await navigator.clipboard.writeText(link);
+        const old = btn.textContent;
+        btn.textContent = 'تم النسخ ✓';
+        setTimeout(()=>{ btn.textContent = old; }, 1500);
+      }catch(e){
+        prompt('انسخ الرابط يدويًا:', link);
+      }
+    });
+  });
 
   tbody.querySelectorAll('[data-toggle]').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
