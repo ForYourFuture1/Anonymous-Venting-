@@ -34,6 +34,7 @@
       <h3 style="text-align:center;">الجولة <span id="roundNum">١</span> من ٣</h3>
       <div class="timer" id="clock">20:00</div>
       <p style="text-align:center;" id="partnerLine"></p>
+      <div id="meetActivity" style="display:none;margin-top:16px;"></div>
     </div>
   </div>
 
@@ -74,10 +75,14 @@ const pid = urlPid || localStorage.getItem('majlis_pid');
 let participant = null;
 let state = {};
 let scheduleRounds = [];
+let scheduleTopics = [];
 let byId = {};
 let allSelections = [];
 let selected = new Set();
 let pillsBuilt = false;
+let currentMeetTopics = null;
+let currentMateId = null;
+let currentVentInfo = null;
 
 function showOnly(id){
   ['notFoundCard','pendingCard','sessionCard','pickCard','resultsCard'].forEach(x=>{
@@ -117,6 +122,83 @@ function render(){
   }else{
     partnerLine.textContent = 'تجلس مع: ' + mateNames.join(' و ');
   }
+
+  // فقرات "تعارف" التفاعلية (إن وُجدت لهذه المجموعة بهذه الجولة)
+  currentMateId = mateIds.length===1 ? mateIds[0] : null;
+  const roundGroups = scheduleRounds[roundIdx] || [];
+  const myGroupIdx = roundGroups.findIndex(g=>g.includes(pid));
+  currentMeetTopics = (myGroupIdx>=0 && scheduleTopics[roundIdx]) ? scheduleTopics[roundIdx][myGroupIdx] : null;
+
+  // فضفضة + مستمع: يحدد دور كل طرف ويكشف موضوع الفضفضة للمستمع بعد فترة التعارف
+  currentVentInfo = null;
+  if(currentMateId && byId[currentMateId]){
+    currentVentInfo = getVentListenInfo(participant, byId[currentMateId]);
+  }
+
+  updateMeetActivity();
+}
+
+function getElapsedSeconds(){
+  if(state.status==='running' && state.endsAt) return Math.max(0, 1200 - (state.endsAt - Date.now())/1000);
+  if(state.status==='paused') return Math.max(0, 1200 - (state.remaining||0)/1000);
+  return 0;
+}
+
+function updateMeetActivity(){
+  const box = document.getElementById('meetActivity');
+  if(!box) return;
+
+  if(currentMeetTopics && currentMateId && participant){
+    const elapsed = getElapsedSeconds();
+    let html = '';
+    if(elapsed < MEET_INTRO_SECONDS){
+      html = `<div class="notice"><b>تعارف حر:</b> تكلموا الآن واسألوا بعض الأسئلة اللي تهمكم قبل ما نبدأ بالفقرات.</div>`;
+    }else{
+      const segIdx = Math.min(2, Math.floor((elapsed - MEET_INTRO_SECONDS) / MEET_SEGMENT_SECONDS));
+      const topicKey = currentMeetTopics[segIdx];
+      const info = getTopicPrompt(topicKey, participant, currentMateId);
+      if(info){
+        html = `<div class="notice">
+          <div class="hint">الفقرة ${['١','٢','٣'][segIdx]} من ٣</div>
+          <h3 style="margin:6px 0;">${info.label}</h3>
+          <p style="margin:0;color:var(--text);">${info.prompt}</p>
+        </div>`;
+      }
+    }
+    box.style.display = 'block';
+    box.innerHTML = html;
+    return;
+  }
+
+  if(currentVentInfo && participant){
+    const elapsed = getElapsedSeconds();
+    let html = '';
+    if(elapsed < MEET_INTRO_SECONDS){
+      html = `<div class="notice">
+        <b>تعارف قصير (٤ دقائق):</b> عرّفوا عن نفسكم بشكل بسيط ولماذا حضرتم اليوم.
+        <div class="hint" style="margin-top:8px;">أسئلة تساعدكم تبدؤون:</div>
+        <ul style="margin:6px 0 0;padding-inline-start:20px;color:var(--text);">
+          ${ICEBREAKER_QUESTIONS.map(q=>`<li>${q}</li>`).join('')}
+        </ul>
+      </div>`;
+    }else if(currentVentInfo.role === 'vent'){
+      html = `<div class="notice">
+        <p style="margin:0 0 10px;">دورك الآن — تكلم عن: <b>${currentVentInfo.subCategory || 'ما يشغل بالك'}</b></p>
+        <p class="hint" style="margin:0;">${VENT_REMINDER}</p>
+      </div>`;
+    }else{
+      html = `<div class="notice">
+        <p style="margin:0 0 10px;">الشخص اللي معك يرغب يفضفض عن: <b>${currentVentInfo.subCategory || 'موضوع يشغل باله'}</b></p>
+        <p style="margin:0 0 10px;">استمع، واسأل أو قدّم رأيك إذا رغب هو بذلك.</p>
+        <p class="hint" style="margin:0;">${VENT_REMINDER}</p>
+      </div>`;
+    }
+    box.style.display = 'block';
+    box.innerHTML = html;
+    return;
+  }
+
+  box.style.display = 'none';
 }
 
 function renderPicks(){
@@ -202,6 +284,7 @@ setInterval(()=>{
   }else{
     clockEl.textContent = '20:00';
   }
+  updateMeetActivity();
 }, 1000);
 
 /* ===== الاستماع الحي لكل مصادر البيانات ===== */
@@ -225,6 +308,7 @@ if(pid && eid){
   });
   scheduleDocRef.onSnapshot(doc=>{
     scheduleRounds = doc.exists ? scheduleFromFirestore(doc.data().rounds) : [];
+    scheduleTopics = doc.exists ? scheduleTopicsFromFirestore(doc.data().rounds) : [];
     render();
   });
   selectionsRef.onSnapshot(snap=>{

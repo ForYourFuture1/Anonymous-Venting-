@@ -195,7 +195,7 @@ function boot(){
   }));
 
   unsubs.push(scheduleDocRef.onSnapshot(doc=>{
-    schedule = doc.exists ? {rounds: scheduleFromFirestore(doc.data().rounds)} : null;
+    schedule = doc.exists ? {rounds: scheduleFromFirestore(doc.data().rounds), topics: scheduleTopicsFromFirestore(doc.data().rounds)} : null;
     document.getElementById('roundCard').style.display = schedule ? 'block':'none';
     document.getElementById('openSelCard').style.display = schedule ? 'block':'none';
     if(schedule) renderGroups();
@@ -285,7 +285,9 @@ document.getElementById('genBtn').addEventListener('click', async ()=>{
   try{
     const simple = paidParticipants.map(p=>({id:p.id, gender:p.gender, prefer:p.prefer, goal:p.goal}));
     const rounds = generateSchedule(simple, 3);
-    await scheduleDocRef.set({rounds: scheduleToFirestore(rounds), generatedAt: firebase.firestore.FieldValue.serverTimestamp()});
+    const byIdSimple = Object.fromEntries(simple.map(p=>[p.id,p]));
+    const topicsMap = computeMeetTopics(rounds, byIdSimple);
+    await scheduleDocRef.set({rounds: scheduleToFirestore(rounds, topicsMap), generatedAt: firebase.firestore.FieldValue.serverTimestamp()});
     await stateRef.set({round:1, status:'idle', selectionOpen:false, resultsOpen:false}, {merge:true});
     hint.textContent = `تم التوليد لِـ ${paidParticipants.length} مشارك مؤكَّد ✓`;
   }catch(e){
@@ -301,12 +303,28 @@ function renderGroups(){
     const roundIdx = (st.round||1) - 1;
     document.getElementById('roundNum').textContent = arabicNum(st.round||1);
     const groups = schedule.rounds[roundIdx] || [];
+    const groupTopics = (schedule.topics && schedule.topics[roundIdx]) || [];
     const el = document.getElementById('groupsList');
     el.innerHTML = groups.map((g,i)=>{
       const names = g.map(id => byId[id] ? byId[id].nickname : '؟').join(' + ');
       const size = g.length===1 ? '<span class="badge" style="border-color:var(--danger);color:var(--danger);">بلا شريك هذه الجولة</span>' : '';
-      return `<div class="row between" style="padding:10px 0;border-bottom:1px solid var(--line);">
-        <span>مجموعة ${i+1}: ${names}</span> ${size}
+      const topics = groupTopics[i];
+      const topicsLine = topics ? `<div class="hint" style="margin-top:4px;">فقرات تعارف: ${topics.map(k=>{
+        const t = MIXED_TOPICS.find(x=>x.key===k) || SAME_TOPICS.find(x=>x.key===k);
+        return t ? t.label : k;
+      }).join(' — ')}</div>` : '';
+      let ventLine = '';
+      if(g.length===2){
+        const pa = byId[g[0]], pb = byId[g[1]];
+        if(pa && pb){
+          const info = getVentListenInfo(pa, pb);
+          if(info) ventLine = `<div class="hint" style="margin-top:4px;">موضوع الفضفضة: ${escapeHtml(info.subCategory||'—')}</div>`;
+        }
+      }
+      return `<div class="row between" style="padding:10px 0;border-bottom:1px solid var(--line);flex-direction:column;align-items:stretch;">
+        <div class="row between"><span>مجموعة ${i+1}: ${names}</span> ${size}</div>
+        ${topicsLine}
+        ${ventLine}
       </div>`;
     }).join('') || '<p>لا توجد مجموعات لهذه الجولة.</p>';
   });
