@@ -102,7 +102,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="firebase-config.js"></script>
-<script src="app.js?v=2"></script>
+<script src="app.js?v=5"></script>
 <script>
 document.getElementById('eventTitle').textContent = EVENT_NAME;
 document.title = EVENT_NAME + ' — لوحة المنظم';
@@ -309,7 +309,7 @@ function renderGroups(){
       const names = g.map(id => byId[id] ? byId[id].nickname : '؟').join(' + ');
       const size = g.length===1 ? '<span class="badge" style="border-color:var(--danger);color:var(--danger);">بلا شريك هذه الجولة</span>' : '';
       const topics = groupTopics[i];
-      const topicsLine = topics ? `<div class="hint" style="margin-top:4px;">فقرات تعارف: ${topics.map(k=>{
+      const topicsLine = topics ? `<div class="hint" style="margin-top:4px;">فقرات نقاش: ${topics.map(k=>{
         const t = MIXED_TOPICS.find(x=>x.key===k) || SAME_TOPICS.find(x=>x.key===k);
         return t ? t.label : k;
       }).join(' — ')}</div>` : '';
