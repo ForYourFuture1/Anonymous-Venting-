@@ -45,6 +45,55 @@
   --listen-text:#1D7EB0;
 }
 
+/* ===== الوضع الليلي: نفس الهوية بألوان أغمق، مو رجوع للثيم القديم ===== */
+html[data-theme="dark"]{
+  --bg:#17181C;
+  --surface:#1F2024;
+  --surface2:#26272C;
+  --line:#34353B;
+  --accent:#8B82FF;
+  --accent-2:#6C63FF;
+  --text:#F2F2F5;
+  --muted:#9A9AA2;
+  --danger:#FF6B6B;
+
+  --vent-accent:#3ED6B0;
+  --vent-bg:#16332C;
+  --vent-text:#6EE7C5;
+
+  --meet-accent:#FF7FAE;
+  --meet-bg:#33202A;
+  --meet-text:#FFA9C7;
+
+  --listen-accent:#63C0F5;
+  --listen-bg:#16283A;
+  --listen-text:#9AD6FA;
+}
+html[data-theme="dark"] .card{
+  box-shadow:0 1px 3px rgba(0,0,0,.2), 0 10px 24px rgba(0,0,0,.25);
+}
+html[data-theme="dark"] button:not(.theme-toggle),html[data-theme="dark"] .btn{
+  box-shadow:0 6px 16px rgba(139,130,255,.25);
+}
+
+.theme-toggle{
+  position:fixed;
+  top:16px;left:16px;
+  width:42px;height:42px;
+  border-radius:50%;
+  background:var(--surface);
+  border:1px solid var(--line);
+  box-shadow:0 2px 10px rgba(0,0,0,.1);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;
+  z-index:100;
+  padding:0;
+  color:var(--text);
+  transition:background-color .2s, color .2s;
+}
+.theme-toggle:hover{filter:none;background:var(--surface2);}
+.theme-toggle svg{width:20px;height:20px;}
+
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;}
 body{
@@ -54,6 +103,7 @@ body{
   direction:rtl;
   line-height:1.7;
   min-height:100vh;
+  transition:background-color .2s, color .2s;
 }
 
 ::selection{background:var(--accent);color:#fff;}
