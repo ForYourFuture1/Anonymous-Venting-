@@ -9,8 +9,6 @@
 <body>
 <div class="wrap">
 
-  <div class="majlis" id="majlis"></div>
-
   <div class="eyebrow">تسجيل الحضور</div>
   <h1 id="eventTitle">مجلس</h1>
   <p>سجّل بياناتك بسرية تامة. سيتواصل معك المنظّم عبر واتساب لتأكيد حضورك، وبعدها ستُمنح اسمًا مستعارًا يستخدمه الجميع خلال الجلسات.</p>
@@ -33,10 +31,19 @@
     <textarea id="fDesc" placeholder="مثال: أحب الهدوء، أعمل في التصميم، أستمع أكثر مما أتحدث..."></textarea>
 
     <label>ما هدفك من الحضور؟</label>
-    <div class="choice-row" id="goalRow">
-      <div class="choice" data-val="vent">فضفضة</div>
-      <div class="choice" data-val="meet">تعارف</div>
-      <div class="choice" data-val="listen">مستمع / أعطي نصائح</div>
+    <div class="goal-grid" id="goalRow">
+      <div class="goal-card vent" data-val="vent">
+        <div class="goal-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/><line x1="8" y1="10" x2="16" y2="10"/><line x1="8" y1="13.5" x2="13" y2="13.5"/></svg></div>
+        <div class="goal-label">فضفضة</div>
+      </div>
+      <div class="goal-card meet" data-val="meet">
+        <div class="goal-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+        <div class="goal-label">تعارف</div>
+      </div>
+      <div class="goal-card listen" data-val="listen">
+        <div class="goal-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg></div>
+        <div class="goal-label">مستمع / أعطي نصائح</div>
+      </div>
     </div>
 
     <div id="subCatBlock" style="display:none;">
@@ -81,24 +88,6 @@
 document.getElementById('eventTitle').textContent = EVENT_NAME;
 document.title = EVENT_NAME + ' — التسجيل';
 
-// رسم دائرة المجلس (العنصر المميز)
-(function drawMajlis(){
-  const el = document.getElementById('majlis');
-  const n = 10, r = 100;
-  el.innerHTML = '<div class="center"></div>';
-  for(let i=0;i<n;i++){
-    const angle = (i/n) * 2*Math.PI;
-    const x = 110 + r*Math.cos(angle) - 7;
-    const y = 110 + r*Math.sin(angle) - 7;
-    const seat = document.createElement('div');
-    seat.className = 'seat' + (Math.random()<0.35 ? ' lit':'');
-    seat.style.left = x+'px';
-    seat.style.top = y+'px';
-    seat.style.transform = 'none';
-    el.appendChild(seat);
-  }
-})();
-
 let goal=null, gender=null, prefer=null, subCategory=null;
 let currentPhone = '';
 let participantsRef; // يُضبط بعد تحديد الفعالية النشطة
@@ -108,6 +97,15 @@ function wireChoices(rowId, onPick){
   document.getElementById(rowId).querySelectorAll('.choice').forEach(el=>{
     el.addEventListener('click', ()=>{
       el.parentElement.querySelectorAll('.choice').forEach(c=>c.classList.remove('active'));
+      el.classList.add('active');
+      onPick(el.dataset.val);
+    });
+  });
+}
+function wireGoalChoices(rowId, onPick){
+  document.getElementById(rowId).querySelectorAll('.goal-card').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      el.parentElement.querySelectorAll('.goal-card').forEach(c=>c.classList.remove('active'));
       el.classList.add('active');
       onPick(el.dataset.val);
     });
@@ -132,7 +130,7 @@ function renderSubCategories(list, label, preselect){
   });
 }
 
-wireChoices('goalRow', v=>{
+wireGoalChoices('goalRow', v=>{
   goal = v;
   subCategory = null;
   const block = document.getElementById('subCatBlock');

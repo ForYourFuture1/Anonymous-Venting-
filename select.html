@@ -102,6 +102,11 @@ function render(){
   // الجلسة العادية: الاسم + الجولة الحالية
   showOnly('sessionCard');
   document.getElementById('myNick').textContent = participant.nickname;
+  const sessionEl = document.getElementById('sessionCard');
+  sessionEl.classList.remove('theme-vent','theme-meet','theme-listen');
+  if(participant.goal === 'vent') sessionEl.classList.add('theme-vent');
+  else if(participant.goal === 'meet') sessionEl.classList.add('theme-meet');
+  else if(participant.goal === 'listen') sessionEl.classList.add('theme-listen');
 
   if(!scheduleRounds.length){
     document.getElementById('noScheduleNote').style.display = 'block';

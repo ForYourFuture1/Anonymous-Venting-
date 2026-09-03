@@ -225,7 +225,7 @@ function renderRegistrants(){
       <td>${escapeHtml(p.name)}</td>
       <td>${wa ? `<a href="${wa}" target="_blank" style="color:var(--accent-2);">${escapeHtml(p.phone||'')}</a>` : escapeHtml(p.phone||'')}</td>
       <td>${escapeHtml(p.nickname)}</td>
-      <td>${goalLabel(p.goal)}</td>
+      <td><span class="badge ${p.goal}">${goalLabel(p.goal)}</span></td>
       <td style="max-width:220px;white-space:normal;">${escapeHtml(p.subCategory||'')}</td>
       <td>${p.gender}</td>
       <td>${p.prefer}</td>
